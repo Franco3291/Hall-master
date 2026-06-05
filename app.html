@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Campus Matrix</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-bg: #0b1528;
+            --app-bg: #f3f7fa;
+            --card-bg: #ffffff;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+            --accent-blue: #0284c7;
+            --active-green: #10b981;
+            --busy-red: #ef4444;
+            --nav-bg: #0f172a;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--primary-bg); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 10px; }
+        .phone-wrapper { width: 100%; max-width: 412px; height: 845px; background-color: var(--app-bg); border: 12px solid #1e293b; border-radius: 40px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        header { background-color: #0c1e3d; color: white; padding: 1.5rem 1rem 1rem 1rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px; }
+        header p { font-size: 0.75rem; opacity: 0.7; margin-top: 4px; }
+        .app-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; padding-bottom: 65px; }
+        .view-panel { display: none; flex-direction: column; height: 100%; overflow-y: auto; padding: 14px; }
+        .view-panel.active { display: flex; }
+        .section-title { font-size: 0.9rem; font-weight: 700; color: var(--text-dark); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        /* Dashboard Card Layouts */
+        .room-card, .schedule-card { background: var(--card-bg); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .room-title { font-size: 1rem; font-weight: 700; color: var(--text-dark); }
+        .status-pill { font-size: 0.7rem; padding: 4px 10px; border-radius: 12px; font-weight: 700; text-transform: uppercase; }
+        .status-pill.busy { background: #fee2e2; color: var(--busy-red); }
+        .status-pill.available { background: #d1fae5; color: var(--active-green); }
+        .schedule-line { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+
+        /* Forms Styling */
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; }
+        .btn-submit { width: 100%; padding: 12px; background: var(--accent-blue); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+
+        /* Navigation Controls */
+        #map-container { height: 220px; border-radius: 20px; overflow: hidden; margin-bottom: 14px; border: 1px solid #e2e8f0; }
+        #map { width: 100%; height: 100%; }
+        .search-box { background: white; padding: 16px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 14px; }
+        .input-wrap { margin-bottom: 10px; position: relative; }
+        .input-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+        select { width: 100%; padding: 11px 12px 11px 36px; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #f8fafc; appearance: none; }
+        
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 65px; background-color: var(--nav-bg); display: flex; justify-content: space-around; align-items: center; z-index: 999; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; background: none; border: none; cursor: pointer; width: 25%; height: 100%; justify-content: center; font-size: 0.7rem; font-weight: 600; gap: 4px; }
+        .nav-item.active { color: white; }
+        .nav-item i { font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <div class="phone-wrapper">
+        <header>
+            <h1>Smart Campus Matrix</h1>
+            <p id="session-indicator"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
+        </header>
+
+        <div class="app-body">
+            
+            <div id="panel-dashboard" class="view-panel active">
+                <div class="section-title">Live Space Allocations</div>
+                <div id="rooms-list-container"></div>
+            </div>
+
+            <div id="panel-routes" class="view-panel">
+                <div class="section-title">Campus Spatial Navigator</div>
+                <div id="map-container"><div id="map"></div></div>
+                <div class="search-box">
+                    <div class="input-wrap"><i class="fa-solid fa-circle-dot" style="color:var(--accent-blue)"></i><select id="start_node"></select></div>
+                    <div class="input-wrap"><i class="fa-solid fa-location-dot" style="color:var(--busy-red)"></i><select id="end_node"></select></div>
+                    <button class="btn-submit" onclick="generateRoute()">Find Shortest Path</button>
+                </div>
+                <div id="route-directions" class="room-card" style="display:none; border-left:4px solid var(--accent-blue);"></div>
+            </div>
+
+            <div id="panel-schedules" class="view-panel">
+                <div class="section-title">Your Class Schedule Today</div>
+                <div id="schedule-container">
+                    <p style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.85rem;">
+                        <i class="fa-solid fa-user-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
+                        Please Login or Register an Account to view your active timetable schedules tracking feed.
+                    </p>
+                </div>
+            </div>
+
+            <div id="panel-register" class="view-panel">
+                <div class="section-title">Create Student Profile</div>
+                <div class="room-card">
+                    <div class="form-group">
+                        <label>Registration Number</label>
+                        <input type="text" id="reg_no" class="form-control" placeholder="e.g., CIT-2-1234/2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Security Password</label>
+                        <input type="password" id="password" class="form-control" placeholder="••••••••">
+                    </div>
+                    <div class="form-group">
+                        <label>Course / Program Title</label>
+                        <input type="text" id="course" class="form-control" placeholder="e.g., B.Sc. Computer Science">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="form-group" style="flex:1;">
+                            <label>Year of Study</label>
+                            <input type="number" id="year" class="form-control" placeholder="3">
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Semester</label>
+                            <input type="number" id="semester" class="form-control" placeholder="1">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Enrolled Unit Codes (Comma Separated)</label>
+                        <input type="text" id="units" class="form-control" placeholder="e.g., CCS 311, BCS 304, SMA 301">
+                    </div>
+                    <button class="btn-submit" onclick="submitRegistration()">Complete Registration</button>
+                </div>
+            </div>
+
+            <nav class="bottom-nav">
+                <button class="nav-item active" onclick="changePanel('panel-dashboard', this)"><i class="fa-solid fa-chart-simple"></i><span>Dashboard</span></button>
+                <button class="nav-item" onclick="changePanel('panel-routes', this)"><i class="fa-solid fa-map-location-dot"></i><span>Map Routes</span></button>
+                <button class="nav-item" onclick="changePanel('panel-schedules', this); fetchPersonalSchedule();"><i class="fa-solid fa-calendar-days"></i><span>Schedules</span></button>
+                <button class="nav-item" onclick="toggleAccountMenu(true)"><i class="fa-solid fa-user"></i><span>Account</span></button>
+            </nav>
+        </div>
+
+        <div id="account-modal" style="position: absolute; bottom: -100%; left: 0; width: 100%; height: 260px; background: #ffffff; border-radius: 30px 30px 0 0; box-shadow: 0 -10px 25px rgba(0,0,0,0.15); z-index: 1000; transition: bottom 0.3s ease-in-out; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+            <div style="width: 50px; height: 5px; background: #cbd5e1; border-radius: 10px; margin: 0 auto 10px auto; cursor: pointer;" onclick="toggleAccountMenu(false)"></div>
+            <p style="font-size: 1rem; font-weight: 700; color: #1e293b; text-align: center; margin-bottom: 8px;">Account Portal Options</p>
+            <button onclick="simulateLogin('Student')" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-graduation-cap" style="color: #0284c7;"></i> Login as Student</button>
+            <button onclick="simulateLogin('Admin')" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-user-shield" style="color: #ef4444;"></i> Login as Admin</button>
+            <button onclick="toggleAccountMenu(false); changePanel('panel-register', null);" style="width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Create New Account</button>
+        </div>
+        <div id="modal-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999; display: none;" onclick="toggleAccountMenu(false)"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        let map;
+        let loggedInRegNo = localStorage.getItem('student_reg_no') || null;
+
+        if (loggedInRegNo) {
+            document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
+        }
+
+        function initMap() {
+            map = L.map('map', {zoomControl: false}).setView([-1.0456, 37.0123], 16); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        }
+
+        function changePanel(panelId, btnElement) {
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            if(btnElement) {
+                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+                btnElement.classList.add('active');
+            }
+            document.getElementById(panelId).classList.add('active');
+            if(panelId === 'panel-routes') {
+                setTimeout(() => { if(!map) { initMap(); } map.invalidateSize(); }, 200);
+            }
+        }
+
+        function toggleAccountMenu(show) {
+            document.getElementById('account-modal').style.bottom = show ? '0' : '-100%';
+            document.getElementById('modal-overlay').style.display = show ? 'block' : 'none';
+        }
+
+        async function submitRegistration() {
+            const payload = {
+                reg_no: document.getElementById('reg_no').value,
+                password: document.getElementById('password').value,
+                course: document.getElementById('course').value,
+                year: parseInt(document.getElementById('year').value),
+                semester: parseInt(document.getElementById('semester').value),
+                units: document.getElementById('units').value
+            };
+
+            const response = await fetch(`${API_URL}/students/register`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+
+            if(response.ok) {
+                alert('Account Created Successfully!');
+                loggedInRegNo = payload.reg_no;
+                localStorage.setItem('student_reg_no', loggedInRegNo);
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
+                changePanel('panel-dashboard', document.querySelector('.nav-item'));
+            } else {
+                const err = await response.json();
+                alert(err.detail);
+            }
+        }
+
+        function simulateLogin(type) {
+            toggleAccountMenu(false);
+            if(type === 'Admin') {
+                alert('Admin Terminal View Simulation Connected.');
+            } else {
+                const reg = prompt("Enter Registered Student Reg No:", loggedInRegNo || "");
+                if(reg) {
+                    loggedInRegNo = reg;
+                    localStorage.setItem('student_reg_no', reg);
+                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${reg}`;
+                    alert('Logged in!');
+                    changePanel('panel-schedules', null);
+                    fetchPersonalSchedule();
+                }
+            }
+        }
+
+        async function fetchPersonalSchedule() {
+            const container = document.getElementById('schedule-container');
+            if (!loggedInRegNo) return;
+
+            try {
+                const response = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
+                const data = await response.json();
+                
+                if (data.schedule.length === 0) {
+                    container.innerHTML = `<p style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:20px;">🎉 No classes scheduled for your units today (${data.day})!</p>`;
+                    return;
+                }
+
+                container.innerHTML = `<p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day}</p>`;
+                data.schedule.forEach(item => {
+                    container.innerHTML += `
+                        <div class="schedule-card" style="border-left: 4px solid var(--accent-blue)">
+                            <div class="card-top">
+                                <span class="room-title">${item.course_code}</span>
+                                <span class="status-pill available">${item.venue}</span>
+                            </div>
+                            <div style="font-size:0.85rem; font-weight:600; color:var(--text-dark);">${item.course_name}</div>
+                            <div class="schedule-line"><i class="fa-regular fa-clock"></i> <span>Time: ${item.time}</span></div>
+                        </div>
+                    `;
+                });
+            } catch(e) {
+                container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem;">⚠️ Create your account first using the exact Unit Codes matching the parsed PDF Timetable database.</p>`;
+            }
+        }
+
+        async function fetchRoomStatus() {
+            try {
+                const response = await fetch(`${API_URL}/rooms/status`);
+                const data = await response.json();
+                const container = document.getElementById('rooms-list-container');
+                const startSelect = document.getElementById('start_node');
+                const endSelect = document.getElementById('end_node');
+                
+                const prevStart = startSelect.value; const prevEnd = endSelect.value;
+                container.innerHTML = ''; startSelect.innerHTML = ''; endSelect.innerHTML = '';
+
+                data.forEach(room => {
+                    startSelect.add(new Option(room.venue, room.venue));
+                    endSelect.add(new Option(room.venue, room.venue));
+
+                    container.innerHTML += `
+                        <div class="room-card">
+                            <div class="card-top">
+                                <span class="room-title">${room.venue}</span>
+                                <span class="status-pill ${room.status.toLowerCase()}">${room.status}</span>
+                            </div>
+                            <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule}</span></div>
+                            <div style="font-size:0.7rem; color:#94a3b8;"><i class="fa-regular fa-clock"></i> <span>${room.last_verified}</span></div>
+                        </div>
+                    `;
+                });
+                if(prevStart) startSelect.value = prevStart; if(prevEnd) endSelect.value = prevEnd;
+            } catch (error) {
+                document.getElementById('rooms-list-container').innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>🔄 Waiting for local FastAPI server deployment initialization connection...</p>";
+            }
+        }
+
+        async function generateRoute() {
+            const start = document.getElementById('start_node').value;
+            const end = document.getElementById('end_node').value;
+            const directionsDiv = document.getElementById('route-directions');
+            try {
+                const response = await fetch(`${API_URL}/navigate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ start_node: start, end_node: end })
+                });
+                const data = await response.json();
+                directionsDiv.style.display = 'block';
+                directionsDiv.innerHTML = `<p style='color:var(--accent-blue);font-weight:700;'>🎯 Path Found!</p><p>📏 Total Walking Distance: <b>${data.total_distance_meters}m</b></p><p style='font-size:0.75rem; color:var(--text-muted); margin-top:4px;'>Path: ${data.routing_path.join(' → ')}</p>`;
+            } catch (error) {
+                directionsDiv.style.display = 'block';
+                directionsDiv.innerHTML = `<span style="color:var(--busy-red)">⚠️ Path coordinates calculation unavailable.</span>`;
+            }
+        }
+
+        window.onload = () => { fetchRoomStatus(); setInterval(fetchRoomStatus, 8000); };
+    </script>
+</body>
+</html>

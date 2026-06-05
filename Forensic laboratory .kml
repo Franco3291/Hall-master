@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<Style id='pointStyle'>
+<IconStyle>
+<Icon><href>https://map-marker.robotukai.com/7FF00F</href></Icon>
+</IconStyle>
+</Style>
+<Placemark>
+<name>Forensic laboratory </name>
+<description></description>
+<styleUrl>#pointStyle</styleUrl>
+<Point>
+<coordinates>
+37.9906951636076,-0.09255528149917314,0
+</coordinates>
+</Point>
+</Placemark>
+</Document>
+</kml>

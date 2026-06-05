@@ -152,9 +152,14 @@
         .toggle-password {
             position: absolute;
             right: 16px;
-            top: 42px;
+            top: 48px;
             cursor: pointer;
             color: var(--text-muted);
+            transition: color 0.3s ease;
+        }
+
+        .toggle-password:hover {
+            color: var(--accent);
         }
 
         .relative {
@@ -252,6 +257,13 @@
         .error-shake {
             animation: shake 0.3s ease;
         }
+
+        .error-message {
+            color: var(--error);
+            font-size: 13px;
+            margin-top: 5px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -265,11 +277,13 @@
             <div class="input-field">
                 <label>Username</label>
                 <input type="text" id="darkUsername" placeholder="Choose a username">
+                <div class="error-message" id="usernameError"></div>
             </div>
 
             <div class="input-field">
                 <label>Email</label>
                 <input type="email" id="darkEmail" placeholder="Enter your email">
+                <div class="error-message" id="emailError"></div>
             </div>
 
             <div class="input-field relative">
@@ -280,6 +294,7 @@
                     <div class="strength-bar" id="strengthBar"></div>
                 </div>
                 <div class="strength-text" id="strengthText"></div>
+                <div class="error-message" id="passwordError"></div>
             </div>
 
             <button type="submit" class="btn-dark">Sign Up →</button>
@@ -290,8 +305,8 @@
         </div>
 
         <div class="signup-options">
-            <button><i class="fab fa-google"></i> Google</button>
-            <button><i class="fab fa-github"></i> GitHub</button>
+            <button type="button"><i class="fab fa-google"></i> Google</button>
+            <button type="button"><i class="fab fa-github"></i> GitHub</button>
         </div>
 
         <div class="login-footer">
@@ -300,9 +315,11 @@
     </div>
 
     <script>
-        // Particle animation
+        // Particle animation (reduced for better performance)
         const particles = document.getElementById('particles');
-        for (let i = 0; i < 100; i++) {
+        const particleCount = window.innerWidth < 768 ? 30 : 100;
+        
+        for (let i = 0; i < particleCount; i++) {
             const particle = document.createElement('span');
             const size = Math.random() * 4 + 1;
             particle.style.width = size + 'px';
@@ -345,29 +362,77 @@
 
         // Toggle password visibility
         const toggleBtn = document.getElementById('togglePassword');
+        let passwordVisible = false;
+
         toggleBtn.addEventListener('click', function() {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordVisible = !passwordVisible;
+            const type = passwordVisible ? 'text' : 'password';
             passwordInput.setAttribute('type', type);
+            this.classList.toggle('fa-eye');
             this.classList.toggle('fa-eye-slash');
         });
+
+        // Form validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+
+        function clearErrors() {
+            document.getElementById('usernameError').style.display = 'none';
+            document.getElementById('emailError').style.display = 'none';
+            document.getElementById('passwordError').style.display = 'none';
+        }
+
+        function showFieldError(fieldId, message) {
+            document.getElementById(fieldId).textContent = message;
+            document.getElementById(fieldId).style.display = 'block';
+        }
 
         // Form submission
         const darkForm = document.getElementById('darkForm');
         
         darkForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            clearErrors();
             
-            const username = document.getElementById('darkUsername').value;
-            const email = document.getElementById('darkEmail').value;
+            const username = document.getElementById('darkUsername').value.trim();
+            const email = document.getElementById('darkEmail').value.trim();
             const password = passwordInput.value;
             
-            if (!username || !email || !password) {
-                showError('Please fill in all fields!');
-                return;
+            let isValid = true;
+
+            // Username validation
+            if (!username) {
+                showFieldError('usernameError', 'Username is required');
+                isValid = false;
+            } else if (!usernameRegex.test(username)) {
+                showFieldError('usernameError', 'Username must be 3-20 characters (letters, numbers, _, -)');
+                isValid = false;
             }
-            
-            if (password.length < 6) {
-                showError('Password must be at least 6 characters!');
+
+            // Email validation
+            if (!email) {
+                showFieldError('emailError', 'Email is required');
+                isValid = false;
+            } else if (!emailRegex.test(email)) {
+                showFieldError('emailError', 'Please enter a valid email address');
+                isValid = false;
+            }
+
+            // Password validation
+            if (!password) {
+                showFieldError('passwordError', 'Password is required');
+                isValid = false;
+            } else if (password.length < 6) {
+                showFieldError('passwordError', 'Password must be at least 6 characters');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                const card = document.querySelector('.dark-card');
+                card.classList.add('error-shake');
+                setTimeout(() => {
+                    card.classList.remove('error-shake');
+                }, 300);
                 return;
             }
             
@@ -376,16 +441,10 @@
             darkForm.reset();
             strengthBar.style.width = '0%';
             strengthText.textContent = '';
+            passwordVisible = false;
+            toggleBtn.classList.remove('fa-eye-slash');
+            toggleBtn.classList.add('fa-eye');
         });
-        
-        function showError(message) {
-            const card = document.querySelector('.dark-card');
-            card.classList.add('error-shake');
-            alert(message);
-            setTimeout(() => {
-                card.classList.remove('error-shake');
-            }, 300);
-        }
     </script>
 </body>
 </html>

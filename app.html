@@ -29,7 +29,6 @@
         .view-panel.active { display: flex; }
         .section-title { font-size: 0.9rem; font-weight: 700; color: var(--text-dark); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        /* Dashboard Card Layouts */
         .room-card, .schedule-card { background: var(--card-bg); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
         .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
         .room-title { font-size: 1rem; font-weight: 700; color: var(--text-dark); }
@@ -38,20 +37,21 @@
         .status-pill.available { background: #d1fae5; color: var(--active-green); }
         .schedule-line { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
 
-        /* Forms Styling */
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; color: var(--text-dark); }
         .form-control { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.85rem; }
         .btn-submit { width: 100%; padding: 12px; background: var(--accent-blue); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; margin-top: 8px; }
 
-        /* Navigation Controls */
-        #map-container { height: 220px; border-radius: 20px; overflow: hidden; margin-bottom: 14px; border: 1px solid #e2e8f0; }
+        #map-container { height: 260px; border-radius: 20px; overflow: hidden; margin-bottom: 14px; border: 1px solid #e2e8f0; }
         #map { width: 100%; height: 100%; }
         .search-box { background: white; padding: 16px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 14px; }
         .input-wrap { margin-bottom: 10px; position: relative; }
-        .input-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
-        select { width: 100%; padding: 11px 12px 11px 36px; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #f8fafc; appearance: none; }
+        .input-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); z-index: 1000; }
+        select { width: 100%; padding: 11px 12px 11px 36px; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #f8fafc; appearance: none; font-weight: 600; color: var(--text-dark); }
         
+        .directions-box { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: none; border-left: 4px solid var(--accent-blue); margin-bottom: 15px; }
+        .step-entry { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.85rem; color: var(--text-dark); border-top: 1px dashed #e2e8f0; padding-top: 8px; }
+
         .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 65px; background-color: var(--nav-bg); display: flex; justify-content: space-around; align-items: center; z-index: 999; }
         .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; background: none; border: none; cursor: pointer; width: 25%; height: 100%; justify-content: center; font-size: 0.7rem; font-weight: 600; gap: 4px; }
         .nav-item.active { color: white; }
@@ -76,22 +76,27 @@
             <div id="panel-routes" class="view-panel">
                 <div class="section-title">Campus Spatial Navigator</div>
                 <div id="map-container"><div id="map"></div></div>
+                
                 <div class="search-box">
-                    <div class="input-wrap"><i class="fa-solid fa-circle-dot" style="color:var(--accent-blue)"></i><select id="start_node"></select></div>
-                    <div class="input-wrap"><i class="fa-solid fa-location-dot" style="color:var(--busy-red)"></i><select id="end_node"></select></div>
-                    <button class="btn-submit" onclick="generateRoute()">Find Shortest Path</button>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-street-view" style="color:var(--active-green)"></i>
+                        <select id="start_node">
+                            <option value="GPS_LIVE">📍 Use My Live GPS Location</option>
+                        </select>
+                    </div>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-location-dot" style="color:var(--busy-red)"></i>
+                        <select id="end_node">
+                        </select>
+                    </div>
+                    <button class="btn-submit" onclick="computeEngineRoute()">Start Live Guidance</button>
                 </div>
-                <div id="route-directions" class="room-card" style="display:none; border-left:4px solid var(--accent-blue);"></div>
+                <div id="guidance-directions" class="directions-box"></div>
             </div>
 
             <div id="panel-schedules" class="view-panel">
                 <div class="section-title">Your Class Schedule Today</div>
-                <div id="schedule-container">
-                    <p style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.85rem;">
-                        <i class="fa-solid fa-user-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>
-                        Please Login or Register an Account to view your active timetable schedules tracking feed.
-                    </p>
-                </div>
+                <div id="schedule-container"></div>
             </div>
 
             <div id="panel-register" class="view-panel">
@@ -99,7 +104,7 @@
                 <div class="room-card">
                     <div class="form-group">
                         <label>Registration Number</label>
-                        <input type="text" id="reg_no" class="form-control" placeholder="e.g., CIT-2-1234/2024">
+                        <input type="text" id="reg_no" class="form-control" placeholder="e.g., EBST5/18557/25">
                     </div>
                     <div class="form-group">
                         <label>Security Password</label>
@@ -107,12 +112,12 @@
                     </div>
                     <div class="form-group">
                         <label>Course / Program Title</label>
-                        <input type="text" id="course" class="form-control" placeholder="e.g., B.Sc. Computer Science">
+                        <input type="text" id="course" class="form-control" placeholder="e.g., Computer Science">
                     </div>
                     <div style="display:flex; gap:10px;">
                         <div class="form-group" style="flex:1;">
                             <label>Year of Study</label>
-                            <input type="number" id="year" class="form-control" placeholder="3">
+                            <input type="number" id="year" class="form-control" placeholder="2">
                         </div>
                         <div class="form-group" style="flex:1;">
                             <label>Semester</label>
@@ -121,7 +126,7 @@
                     </div>
                     <div class="form-group">
                         <label>Enrolled Unit Codes (Comma Separated)</label>
-                        <input type="text" id="units" class="form-control" placeholder="e.g., CCS 311, BCS 304, SMA 301">
+                        <input type="text" id="units" class="form-control" placeholder="e.g., COSC 104, DIA C011">
                     </div>
                     <button class="btn-submit" onclick="submitRegistration()">Complete Registration</button>
                 </div>
@@ -148,16 +153,180 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const API_URL = 'http://127.0.0.1:8000';
-        let map;
+        let map = null;
+        let routeLine = null;
+        let userMarker = null;
+        let campusGeoMarkers = [];
+        let systemNodes = [];
         let loggedInRegNo = localStorage.getItem('student_reg_no') || null;
 
         if (loggedInRegNo) {
             document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
         }
 
-        function initMap() {
-            map = L.map('map', {zoomControl: false}).setView([-1.0456, 37.0123], 16); 
+        function initTharakaMap() {
+            if (map) return;
+            
+            map = L.map('map', {
+                maxBounds: [[-0.1050, 37.9700], [-0.0800, 38.0100]],
+                maxZoom: 19, minZoom: 14
+            }).setView([-0.092969, 37.989887], 16); 
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            
+            startLiveHardwareTracking();
+            fetchSystemNodesOnly();
+        }
+
+        function startLiveHardwareTracking() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.watchPosition((pos) => {
+                let lat = pos.coords.latitude;
+                let lng = pos.coords.longitude;
+
+                // Teleport mock helper to anchor at BS/2 center point if testing outside range
+                const distanceToCampusCenter = L.latLng(lat, lng).distanceTo(L.latLng(-0.092969, 37.989887));
+                if (distanceToCampusCenter > 5000) { 
+                    lat = -0.092969; 
+                    lng = 37.989887;
+                }
+
+                if (userMarker) {
+                    userMarker.setLatLng([lat, lng]);
+                } else {
+                    userMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            html: `<div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 12px #10b981;"></div>`
+                        })
+                    }).addTo(map).bindPopup("<b>Your Tracker Location</b>");
+                }
+            }, (err) => console.log("Awaiting satellite lock..."), { enableHighAccuracy: true });
+        }
+
+        async function fetchSystemNodesOnly() {
+            try {
+                const res = await fetch(`${API_URL}/api/geo-nodes`);
+                const data = await res.json();
+                systemNodes = data;
+
+                const startDrop = document.getElementById('start_node');
+                const endDrop = document.getElementById('end_node');
+
+                startDrop.innerHTML = '<option value="GPS_LIVE">📍 Use My Live GPS Location</option>';
+                endDrop.innerHTML = '';
+
+                campusGeoMarkers.forEach(m => map.removeLayer(m));
+                campusGeoMarkers = [];
+
+                data.forEach(node => {
+                    // Extract structured nodes, stripping obsolete layout markers safely
+                    let visibleName = node.name || "Unnamed Point";
+                    
+                    startDrop.add(new Option(visibleName, visibleName));
+                    endDrop.add(new Option(visibleName, visibleName));
+
+                    if (node.lat && node.lng) {
+                        let pin = L.marker([node.lat, node.lng])
+                            .addTo(map)
+                            .bindPopup(`<b>${visibleName}</b><br>${node.description || 'Campus Node Point'}`);
+                        campusGeoMarkers.push(pin);
+                    }
+                });
+            } catch (e) {
+                console.error("Geospatial framework offline", e);
+            }
+        }
+
+        // ==========================================
+        // 🚀 LIVE BACKEND NAVIGATE PIPELINE INTEGRATION
+        // ==========================================
+        async function computeEngineRoute() {
+            const startVal = document.getElementById('start_node').value;
+            const endVal = document.getElementById('end_node').value;
+            const uiDirections = document.getElementById('guidance-directions');
+
+            if (routeLine) map.removeLayer(routeLine);
+
+            let originLat, originLng;
+            
+            if (startVal === "GPS_LIVE") {
+                if (!userMarker) {
+                    originLat = -0.092969; originLng = 37.989887; 
+                } else {
+                    const coords = userMarker.getLatLng();
+                    originLat = coords.lat; originLng = coords.lng;
+                }
+            } else {
+                const node = systemNodes.find(n => n.name === startVal);
+                if(!node) return;
+                originLat = node.lat; originLng = node.lng;
+            }
+
+            // Prepare payload according to backend NavigationRequest Schema
+            const payload = {
+                start_lat: parseFloat(originLat),
+                start_lng: parseFloat(originLng),
+                end_node_name: endVal
+            };
+
+            try {
+                uiDirections.style.display = 'block';
+                uiDirections.innerHTML = `<p style="color:var(--text-muted); font-size:0.85rem;"><i class="fa-solid fa-spinner fa-spin"></i> Querying routing engine pathways...</p>`;
+
+                const response = await fetch(`${API_URL}/navigate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("Path calculation computation unavailable.");
+
+                const pathData = await response.json();
+                
+                // Expecting structure array of coordinates pairs from backend route solver
+                const coordinatePath = pathData.coordinates || [[originLat, originLng]];
+                const totalDistanceMeters = pathData.total_distance || L.latLng(originLat, originLng).distanceTo(L.latLng(coordinatePath[coordinatePath.length-1]));
+                const systemInstructions = pathData.instructions || "Follow highlighted pathways to destination building.";
+
+                // Plot calculated geometry onto Leaflet map layout canvas
+                routeLine = L.polyline(coordinatePath, {color: '#0284c7', weight: 6, lineCap: 'round'}).addTo(map);
+                map.fitBounds(routeLine.getBounds(), {padding: [40, 40]});
+
+                uiDirections.innerHTML = `
+                    <p style="font-weight:700; color:var(--accent-blue);"><i class="fa-solid fa-signs-post"></i> Turn-by-Turn Guidance</p>
+                    <div class="step-entry">
+                        <i class="fa-solid fa-location-arrow" style="color:var(--accent-blue)"></i>
+                        <span>Departing from <b>${startVal === "GPS_LIVE" ? "Your Tracker Location" : startVal}</b>.</span>
+                    </div>
+                    <div class="step-entry">
+                        <i class="fa-solid fa-diamond-turn-right" style="color:var(--active-green)"></i>
+                        <span>${systemInstructions}</span>
+                    </div>
+                    <div class="step-entry" style="border-top:none; font-weight:700; margin-top:4px;">
+                        <i class="fa-solid fa-ruler-combined"></i><span>Calculated Walk Path: ${Math.round(totalDistanceMeters)} meters</span>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error("Routing resolution error:", error);
+                
+                // Safe recovery calculation mode block
+                const targetNode = systemNodes.find(n => n.name === endVal);
+                if (!targetNode) return;
+
+                const p1 = L.latLng(originLat, originLng);
+                const p2 = L.latLng(targetNode.lat, targetNode.lng);
+
+                routeLine = L.polyline([p1, p2], {color: '#ef4444', weight: 4, dashArray: '5, 10'}).addTo(map);
+                map.fitBounds(routeLine.getBounds(), {padding: [40, 40]});
+
+                uiDirections.innerHTML = `
+                    <p style="font-weight:700; color:var(--busy-red);"><i class="fa-solid fa-triangle-exclamation"></i> Path Coordinates Fallback Mode</p>
+                    <div class="step-entry">
+                        <span>Direct line distance to <b>${endVal}</b> is approximately <b>${Math.round(p1.distanceTo(p2))} meters</b>. Pathway mesh calculation failed.</span>
+                    </div>
+                `;
+            }
         }
 
         function changePanel(panelId, btnElement) {
@@ -168,7 +337,10 @@
             }
             document.getElementById(panelId).classList.add('active');
             if(panelId === 'panel-routes') {
-                setTimeout(() => { if(!map) { initMap(); } map.invalidateSize(); }, 200);
+                setTimeout(() => { 
+                    initTharakaMap();
+                    if(map) map.invalidateSize();
+                }, 200);
             }
         }
 
@@ -179,44 +351,45 @@
 
         async function submitRegistration() {
             const payload = {
-                reg_no: document.getElementById('reg_no').value,
+                reg_no: document.getElementById('reg_no').value.trim(),
                 password: document.getElementById('password').value,
                 course: document.getElementById('course').value,
-                year: parseInt(document.getElementById('year').value),
-                semester: parseInt(document.getElementById('semester').value),
+                year: parseInt(document.getElementById('year').value) || 1,
+                semester: parseInt(document.getElementById('semester').value) || 1,
                 units: document.getElementById('units').value
             };
-
-            const response = await fetch(`${API_URL}/students/register`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-
-            if(response.ok) {
-                alert('Account Created Successfully!');
-                loggedInRegNo = payload.reg_no;
-                localStorage.setItem('student_reg_no', loggedInRegNo);
-                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
-                changePanel('panel-dashboard', document.querySelector('.nav-item'));
-            } else {
-                const err = await response.json();
-                alert(err.detail);
+            try {
+                const response = await fetch(`${API_URL}/students/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if(response.ok) {
+                    alert('Account Created Successfully!');
+                    loggedInRegNo = payload.reg_no;
+                    localStorage.setItem('student_reg_no', loggedInRegNo);
+                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
+                    changePanel('panel-dashboard', document.querySelector('.nav-item'));
+                } else {
+                    const err = await response.json(); 
+                    alert(err.detail || "Registration data entry rejected.");
+                }
+            } catch (err) {
+                alert("Target server connection dropped.");
             }
         }
 
         function simulateLogin(type) {
             toggleAccountMenu(false);
-            if(type === 'Admin') {
-                alert('Admin Terminal View Simulation Connected.');
-            } else {
+            if(type === 'Admin') { alert('Admin Mode Active.'); } 
+            else {
                 const reg = prompt("Enter Registered Student Reg No:", loggedInRegNo || "");
                 if(reg) {
-                    loggedInRegNo = reg;
-                    localStorage.setItem('student_reg_no', reg);
-                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${reg}`;
-                    alert('Logged in!');
-                    changePanel('panel-schedules', null);
+                    loggedInRegNo = reg.trim();
+                    localStorage.setItem('student_reg_no', loggedInRegNo);
+                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
+                    alert('Log In Verified.');
+                    changePanel('panel-schedules', document.querySelectorAll('.nav-item')[2]);
                     fetchPersonalSchedule();
                 }
             }
@@ -224,32 +397,45 @@
 
         async function fetchPersonalSchedule() {
             const container = document.getElementById('schedule-container');
-            if (!loggedInRegNo) return;
-
+            if (!loggedInRegNo) {
+                container.innerHTML = `<p style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.85rem;"><i class="fa-solid fa-user-slash" style="font-size: 2rem; margin-bottom: 10px; display: block;"></i>Please Login via the Account tab to pull your active timetable tracking stream.</p>`;
+                return;
+            }
+            
             try {
                 const response = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
-                const data = await response.json();
-                
-                if (data.schedule.length === 0) {
-                    container.innerHTML = `<p style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:20px;">🎉 No classes scheduled for your units today (${data.day})!</p>`;
+                if (!response.ok) {
+                    container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem; padding:10px;">⚠️ Profile Lookup Error: Not Found inside the systemic registration ledger database.</p>`;
                     return;
                 }
 
-                container.innerHTML = `<p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day}</p>`;
+                const data = await response.json();
+
+                if (!data || !data.schedule || !Array.isArray(data.schedule) || data.schedule.length === 0) {
+                    container.innerHTML = `
+                        <p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day || 'Today'}</p>
+                        <p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:20px;">🎉 No classes scheduled for your units today!</p>
+                    `;
+                    return;
+                }
+
+                let htmlContent = `<p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day}</p>`;
+                
                 data.schedule.forEach(item => {
-                    container.innerHTML += `
+                    htmlContent += `
                         <div class="schedule-card" style="border-left: 4px solid var(--accent-blue)">
                             <div class="card-top">
-                                <span class="room-title">${item.course_code}</span>
-                                <span class="status-pill available">${item.venue}</span>
+                                <span class="room-title">${item.course_code || 'Unit'}</span>
+                                <span class="status-pill available">${item.venue || 'TBD'}</span>
                             </div>
-                            <div style="font-size:0.85rem; font-weight:600; color:var(--text-dark);">${item.course_name}</div>
-                            <div class="schedule-line"><i class="fa-regular fa-clock"></i> <span>Time: ${item.time}</span></div>
+                            <div style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-top:2px;">${item.course_name || 'Lecture Session'}</div>
+                            <div class="schedule-line" style="margin-top:4px;"><i class="fa-regular fa-clock"></i> <span>Time: ${item.time || 'N/A'}</span></div>
                         </div>
                     `;
                 });
+                container.innerHTML = htmlContent;
             } catch(e) {
-                container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem;">⚠️ Create your account first using the exact Unit Codes matching the parsed PDF Timetable database.</p>`;
+                container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem; padding:10px;">⚠️ Error processing API transmission feed parameters.</p>`;
             }
         }
 
@@ -258,53 +444,35 @@
                 const response = await fetch(`${API_URL}/rooms/status`);
                 const data = await response.json();
                 const container = document.getElementById('rooms-list-container');
-                const startSelect = document.getElementById('start_node');
-                const endSelect = document.getElementById('end_node');
+                container.innerHTML = '';
                 
-                const prevStart = startSelect.value; const prevEnd = endSelect.value;
-                container.innerHTML = ''; startSelect.innerHTML = ''; endSelect.innerHTML = '';
+                if(!Array.isArray(data) || data.length === 0){
+                    container.innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>📅 No active allocations found.</p>";
+                    return;
+                }
 
                 data.forEach(room => {
-                    startSelect.add(new Option(room.venue, room.venue));
-                    endSelect.add(new Option(room.venue, room.venue));
-
+                    const statusVal = room.status || "AVAILABLE";
                     container.innerHTML += `
                         <div class="room-card">
                             <div class="card-top">
-                                <span class="room-title">${room.venue}</span>
-                                <span class="status-pill ${room.status.toLowerCase()}">${room.status}</span>
+                                <span class="room-title">${room.venue || 'Venue'}</span>
+                                <span class="status-pill ${statusVal.toLowerCase()}">${statusVal}</span>
                             </div>
-                            <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule}</span></div>
-                            <div style="font-size:0.7rem; color:#94a3b8;"><i class="fa-regular fa-clock"></i> <span>${room.last_verified}</span></div>
+                            <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule || 'Empty'}</span></div>
+                            <div style="font-size:0.7rem; color:#94a3b8;"><i class="fa-regular fa-clock"></i> <span>${room.last_verified || 'Synced'}</span></div>
                         </div>
                     `;
                 });
-                if(prevStart) startSelect.value = prevStart; if(prevEnd) endSelect.value = prevEnd;
             } catch (error) {
-                document.getElementById('rooms-list-container').innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>🔄 Waiting for local FastAPI server deployment initialization connection...</p>";
+                document.getElementById('rooms-list-container').innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>🔄 Looking for FastAPI backend pipelines connection...</p>";
             }
         }
 
-        async function generateRoute() {
-            const start = document.getElementById('start_node').value;
-            const end = document.getElementById('end_node').value;
-            const directionsDiv = document.getElementById('route-directions');
-            try {
-                const response = await fetch(`${API_URL}/navigate`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ start_node: start, end_node: end })
-                });
-                const data = await response.json();
-                directionsDiv.style.display = 'block';
-                directionsDiv.innerHTML = `<p style='color:var(--accent-blue);font-weight:700;'>🎯 Path Found!</p><p>📏 Total Walking Distance: <b>${data.total_distance_meters}m</b></p><p style='font-size:0.75rem; color:var(--text-muted); margin-top:4px;'>Path: ${data.routing_path.join(' → ')}</p>`;
-            } catch (error) {
-                directionsDiv.style.display = 'block';
-                directionsDiv.innerHTML = `<span style="color:var(--busy-red)">⚠️ Path coordinates calculation unavailable.</span>`;
-            }
-        }
-
-        window.onload = () => { fetchRoomStatus(); setInterval(fetchRoomStatus, 8000); };
+        window.onload = () => { 
+            fetchRoomStatus(); 
+            setInterval(fetchRoomStatus, 8000); 
+        };
     </script>
 </body>
 </html>

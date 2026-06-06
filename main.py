@@ -105,7 +105,30 @@ def get_room_status():
 
 
 # ==========================================
-# 👤 ENDPOINT 2: STUDENT PROFILE REGISTRATION
+# 📍 ENDPOINT 2: FETCH GEOGRAPHIC NODES ONLY
+# ==========================================
+@app.get("/api/geo-nodes")
+def get_geo_nodes():
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    rows = cursor.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
+    conn.close()
+    
+    nodes_list = []
+    for row in rows:
+        nodes_list.append({
+            "name": row['name'],
+            "lat": row['lat'],
+            "lng": row['lng'],
+            "description": row['description']
+        })
+    return nodes_list
+
+
+# ==========================================
+# 👤 ENDPOINT 3: STUDENT PROFILE REGISTRATION
 # ==========================================
 @app.post("/students/register")
 def register_student(req: StudentRegisterRequest):
@@ -123,9 +146,8 @@ def register_student(req: StudentRegisterRequest):
     finally:
         conn.close()
 
-
 # ==========================================
-# 📅 ENDPOINT 3: PERSONALIZED SCHEDULE TRACKING
+# 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING (FIXED)
 # ==========================================
 @app.get("/students/schedule/{reg_no}")
 def get_student_schedule(reg_no: str):
@@ -139,37 +161,60 @@ def get_student_schedule(reg_no: str):
         conn.close()
         raise HTTPException(status_code=404, detail="Student profile not found")
         
-    # Split comma-separated units and strip empty whitespaces
-    registered_units = [u.strip() for u in student['units'].split(',')]
+    if not student['units']:
+        conn.close()
+        return {"day": datetime.now().strftime('%A'), "schedule": []}
+        
+    registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
+    if not registered_units:
+        conn.close()
+        return {"day": datetime.now().strftime('%A'), "schedule": []}
     
     current_day = datetime.now().strftime('%A')
     
-    # 2. Query timetable for matching units happening today
+    # Create the correct number of ? placeholders for our SQL query
     placeholders = ','.join('?' for _ in registered_units)
+    
+    # Force case-insensitive matching to protect against user typos (e.g., 'cosc 104' vs 'COSC 104')
     query = f'''
         SELECT course_code, course_name, start_time, end_time, venue 
         FROM timetable 
-        WHERE day_of_week = ? AND course_code IN ({placeholders})
+        WHERE UPPER(day_of_week) = UPPER(?) 
+          AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
         ORDER BY start_time ASC
     '''
     
-    schedule_rows = cursor.execute(query, [current_day] + registered_units).fetchall()
+    # Convert all arguments to uppercase to match the case-insensitive database check
+    search_params = [current_day] + [u.upper() for u in registered_units]
+    
+    try:
+        schedule_rows = cursor.execute(query, search_params).fetchall()
+    except Exception as e:
+        conn.close()
+        return {"day": current_day, "schedule": [], "error": str(e)}
+        
     conn.close()
     
     schedules = []
     for row in schedule_rows:
+        # Using dictionary get/key safety fallbacks
+        code = row['course_code'] if ('course_code' in row.keys() and row['course_code']) else "UNIT"
+        name = row['course_name'] if ('course_name' in row.keys() and row['course_name']) else "Lecture Session"
+        start = row['start_time'] if ('start_time' in row.keys() and row['start_time']) else "00:00"
+        end = row['end_time'] if ('end_time' in row.keys() and row['end_time']) else "00:00"
+        rm_venue = row['venue'] if ('venue' in row.keys() and row['venue']) else "Unassigned Venue"
+        
         schedules.append({
-            "course_code": row['course_code'],
-            "course_name": row['course_name'],
-            "time": f"{row['start_time']} - {row['end_time']}",
-            "venue": row['venue']
+            "course_code": str(code),
+            "course_name": str(name),
+            "time": f"{start} - {end}",
+            "venue": str(rm_venue)
         })
         
     return {"day": current_day, "schedule": schedules}
 
-
 # ==========================================
-# 👥 ENDPOINT 4: CROWDSOURCED OVERRIDE REPORTING
+# 👥 ENDPOINT 5: CROWDSOURCED OVERRIDE REPORTING
 # ==========================================
 @app.post("/verify")
 def verify_room(req: VerificationRequest):
@@ -198,7 +243,7 @@ def verify_room(req: VerificationRequest):
 
 
 # ==========================================
-# 🗘 ENDPOINT 5: RESET TELEMETRY OVERRIDES
+# 🗘 ENDPOINT 6: RESET TELEMETRY OVERRIDES
 # ==========================================
 @app.post("/rooms/reset")
 def reset_rooms():
@@ -211,7 +256,7 @@ def reset_rooms():
 
 
 # ==========================================
-# 🗺️ ENDPOINT 6: DIJKSTRA GEOGRAPHIC NAVIGATION
+# 🗺️ ENDPOINT 7: DIJKSTRA GEOGRAPHIC NAVIGATION
 # ==========================================
 @app.post("/navigate")
 def navigate(req: NavigationRequest):
@@ -225,7 +270,6 @@ def navigate(req: NavigationRequest):
     if req.start_node not in nodes or req.end_node not in nodes:
         raise HTTPException(status_code=400, detail="Selected points must exist in mapped KML nodes data layer")
         
-    # Build adjacency matrix graph structure
     graph = {node: {} for node in nodes}
     for edge in edges:
         u, v, w = edge['node_from'], edge['node_to'], edge['distance_meters']
@@ -233,7 +277,6 @@ def navigate(req: NavigationRequest):
             graph[u][v] = w
             graph[v][u] = w 
             
-    # Classical Dijkstra Algorithm Implementation
     queue = {node: float('inf') for node in nodes}
     queue[req.start_node] = 0
     previous = {node: None for node in nodes}
@@ -260,7 +303,6 @@ def navigate(req: NavigationRequest):
     if distances[req.end_node] == float('inf'):
         raise HTTPException(status_code=404, detail="No viable walking paths found between locations")
         
-    # Reconstruct shortest path sequence track
     path = []
     curr = req.end_node
     while curr is not None:

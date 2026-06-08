@@ -1,8 +1,11 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import sqlite3
+
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Campus@123')
 
 # 1. Initialize the FastAPI application instance
 app = FastAPI()
@@ -32,6 +35,13 @@ class StudentRegisterRequest(BaseModel):
     year: int
     semester: int
     units: str # Expecting comma-separated string like "CCS 311,BCS 304"
+
+class StudentLoginRequest(BaseModel):
+    reg_no: str
+    password: str
+
+class AdminLoginRequest(BaseModel):
+    admin_password: str
 
 
 # ==========================================
@@ -146,6 +156,32 @@ def register_student(req: StudentRegisterRequest):
     finally:
         conn.close()
 
+@app.post("/students/login")
+def login_student(req: StudentLoginRequest):
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    student = cursor.execute(
+        "SELECT reg_no, course, year, semester, units FROM students WHERE reg_no = ? AND password = ?",
+        (req.reg_no, req.password)
+    ).fetchone()
+    conn.close()
+    if not student:
+        raise HTTPException(status_code=401, detail="Invalid registration number or password.")
+    return {
+        "reg_no": student['reg_no'],
+        "course": student['course'],
+        "year": student['year'],
+        "semester": student['semester'],
+        "units": student['units']
+    }
+
+@app.post("/admin/login")
+def login_admin(req: AdminLoginRequest):
+    if req.admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    return {"status": "success", "message": "Admin authenticated."}
+
 # ==========================================
 # 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING (FIXED)
 # ==========================================
@@ -155,27 +191,29 @@ def get_student_schedule(reg_no: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Look up student's registered units sequence
-    student = cursor.execute("SELECT units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
+    student = cursor.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
     if not student:
         conn.close()
         raise HTTPException(status_code=404, detail="Student profile not found")
-        
-    if not student['units']:
-        conn.close()
-        return {"day": datetime.now().strftime('%A'), "schedule": []}
-        
-    registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
-    if not registered_units:
-        conn.close()
-        return {"day": datetime.now().strftime('%A'), "schedule": []}
     
+    registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
     current_day = datetime.now().strftime('%A')
     
-    # Create the correct number of ? placeholders for our SQL query
-    placeholders = ','.join('?' for _ in registered_units)
+    if not registered_units:
+        conn.close()
+        return {
+            "day": current_day,
+            "student": {
+                "reg_no": reg_no,
+                "course": student['course'],
+                "year": student['year'],
+                "semester": student['semester'],
+                "units": student['units']
+            },
+            "schedule": []
+        }
     
-    # Force case-insensitive matching to protect against user typos (e.g., 'cosc 104' vs 'COSC 104')
+    placeholders = ','.join('?' for _ in registered_units)
     query = f'''
         SELECT course_code, course_name, start_time, end_time, venue 
         FROM timetable 
@@ -183,8 +221,6 @@ def get_student_schedule(reg_no: str):
           AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
         ORDER BY start_time ASC
     '''
-    
-    # Convert all arguments to uppercase to match the case-insensitive database check
     search_params = [current_day] + [u.upper() for u in registered_units]
     
     try:
@@ -192,12 +228,10 @@ def get_student_schedule(reg_no: str):
     except Exception as e:
         conn.close()
         return {"day": current_day, "schedule": [], "error": str(e)}
-        
     conn.close()
     
     schedules = []
     for row in schedule_rows:
-        # Using dictionary get/key safety fallbacks
         code = row['course_code'] if ('course_code' in row.keys() and row['course_code']) else "UNIT"
         name = row['course_name'] if ('course_name' in row.keys() and row['course_name']) else "Lecture Session"
         start = row['start_time'] if ('start_time' in row.keys() and row['start_time']) else "00:00"
@@ -210,8 +244,18 @@ def get_student_schedule(reg_no: str):
             "time": f"{start} - {end}",
             "venue": str(rm_venue)
         })
-        
-    return {"day": current_day, "schedule": schedules}
+    
+    return {
+        "day": current_day,
+        "student": {
+            "reg_no": reg_no,
+            "course": student['course'],
+            "year": student['year'],
+            "semester": student['semester'],
+            "units": student['units']
+        },
+        "schedule": schedules
+    }
 
 # ==========================================
 # 👥 ENDPOINT 5: CROWDSOURCED OVERRIDE REPORTING

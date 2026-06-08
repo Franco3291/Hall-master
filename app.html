@@ -64,6 +64,9 @@
         <header>
             <h1>Smart Campus Matrix</h1>
             <p id="session-indicator"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
+            <div style="display:flex; justify-content:center; margin-top:10px;">
+                <button onclick="toggleAccountMenu(true)" style="padding: 8px 14px; border:none; border-radius:999px; background:#0284c7; color:white; font-weight:700; cursor:pointer;">Open Account Portal</button>
+            </div>
         </header>
 
         <div class="app-body">
@@ -97,6 +100,17 @@
             <div id="panel-schedules" class="view-panel">
                 <div class="section-title">Your Class Schedule Today</div>
                 <div id="schedule-container"></div>
+            </div>
+
+            <div id="panel-profile" class="view-panel">
+                <div class="section-title">Student Profile Dashboard</div>
+                <div id="profile-container"></div>
+            </div>
+
+            <div id="panel-admin" class="view-panel">
+                <div class="section-title">Admin Room Override Control</div>
+                <div id="admin-status-container"></div>
+                <button class="btn-submit" style="background: #ef4444;" onclick="releaseAllOverrides()">Reset All Room Overrides</button>
             </div>
 
             <div id="panel-register" class="view-panel">
@@ -136,16 +150,40 @@
                 <button class="nav-item active" onclick="changePanel('panel-dashboard', this)"><i class="fa-solid fa-chart-simple"></i><span>Dashboard</span></button>
                 <button class="nav-item" onclick="changePanel('panel-routes', this)"><i class="fa-solid fa-map-location-dot"></i><span>Map Routes</span></button>
                 <button class="nav-item" onclick="changePanel('panel-schedules', this); fetchPersonalSchedule();"><i class="fa-solid fa-calendar-days"></i><span>Schedules</span></button>
-                <button class="nav-item" onclick="toggleAccountMenu(true)"><i class="fa-solid fa-user"></i><span>Account</span></button>
+                <button class="nav-item" onclick="changePanel('panel-profile', this); fetchProfile();"><i class="fa-solid fa-user"></i><span>Profile</span></button>
             </nav>
         </div>
 
-        <div id="account-modal" style="position: absolute; bottom: -100%; left: 0; width: 100%; height: 260px; background: #ffffff; border-radius: 30px 30px 0 0; box-shadow: 0 -10px 25px rgba(0,0,0,0.15); z-index: 1000; transition: bottom 0.3s ease-in-out; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div id="account-modal" style="position: absolute; bottom: -100%; left: 0; width: 100%; max-height: 400px; background: #ffffff; border-radius: 30px 30px 0 0; box-shadow: 0 -10px 25px rgba(0,0,0,0.15); z-index: 1000; transition: bottom 0.3s ease-in-out; padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
             <div style="width: 50px; height: 5px; background: #cbd5e1; border-radius: 10px; margin: 0 auto 10px auto; cursor: pointer;" onclick="toggleAccountMenu(false)"></div>
             <p style="font-size: 1rem; font-weight: 700; color: #1e293b; text-align: center; margin-bottom: 8px;">Account Portal Options</p>
-            <button onclick="simulateLogin('Student')" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-graduation-cap" style="color: #0284c7;"></i> Login as Student</button>
-            <button onclick="simulateLogin('Admin')" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-user-shield" style="color: #ef4444;"></i> Login as Admin</button>
+            <div id="account-status-card" style="display:none; background:#f8fafc; padding:12px; border-radius:14px; border:1px solid #cbd5e1;">
+                <div style="font-weight:700; margin-bottom:6px;">Logged In As <span id="account-role-label">Student</span></div>
+                <div style="font-size:0.85rem; color:#475569; line-height:1.6;" id="account-user-details"></div>
+            </div>
+            <button id="student-login-button" onclick="showStudentLoginForm()" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-graduation-cap" style="color: #0284c7;"></i> Login as Student</button>
+            <button id="admin-login-button" onclick="showAdminLoginForm()" style="width: 100%; padding: 12px; background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px;"><i class="fa-solid fa-user-shield" style="color: #ef4444;"></i> Login as Admin</button>
             <button onclick="toggleAccountMenu(false); changePanel('panel-register', null);" style="width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Create New Account</button>
+            <button id="logout-button" onclick="logoutUser()" style="display:none; width: 100%; padding: 12px; background: #ef4444; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer;">Logout</button>
+
+            <div id="student-login-panel" style="display:none; background:#f8fafc; padding:16px; border-radius:18px; border:1px solid #cbd5e1;">
+                <div class="form-group">
+                    <label>Student Reg No</label>
+                    <input type="text" id="login_reg_no" class="form-control" placeholder="Enter your reg no">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login_password" class="form-control" placeholder="Enter your password">
+                </div>
+                <button class="btn-submit" onclick="studentLogin()">Continue as Student</button>
+            </div>
+            <div id="admin-login-panel" style="display:none; background:#fff1f2; padding:16px; border-radius:18px; border:1px solid #fecdd3;">
+                <div class="form-group">
+                    <label>Admin Access Code</label>
+                    <input type="password" id="admin_password" class="form-control" placeholder="Enter admin password">
+                </div>
+                <button class="btn-submit" style="background:#ef4444;" onclick="adminLogin()">Continue as Admin</button>
+            </div>
         </div>
         <div id="modal-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999; display: none;" onclick="toggleAccountMenu(false)"></div>
     </div>
@@ -159,9 +197,22 @@
         let campusGeoMarkers = [];
         let systemNodes = [];
         let loggedInRegNo = localStorage.getItem('student_reg_no') || null;
+        let loggedInUserType = localStorage.getItem('user_type') || null;
+        let loggedInStudentData = null;
 
-        if (loggedInRegNo) {
-            document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
+        function restoreSession() {
+            if (loggedInRegNo && loggedInUserType === 'student') {
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
+                loggedInStudentData = { reg_no: loggedInRegNo };
+                fetchProfile();
+            } else if (loggedInUserType === 'admin') {
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode`;
+            }
+            updateAccountModal();
+        }
+
+        if (loggedInRegNo || loggedInUserType) {
+            restoreSession();
         }
 
         function initTharakaMap() {
@@ -364,34 +415,308 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
                 });
+                const data = await response.json();
                 if(response.ok) {
                     alert('Account Created Successfully!');
                     loggedInRegNo = payload.reg_no;
+                    loggedInUserType = 'student';
                     localStorage.setItem('student_reg_no', loggedInRegNo);
-                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
-                    changePanel('panel-dashboard', document.querySelector('.nav-item'));
+                    localStorage.setItem('user_type', loggedInUserType);
+                    loggedInStudentData = { reg_no: loggedInRegNo, course: payload.course, year: payload.year, semester: payload.semester, units: payload.units };
+                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
+                    updateAccountModal();
+                    toggleAccountMenu(false);
+                    changePanel('panel-schedules', document.querySelectorAll('.nav-item')[2]);
+                    fetchPersonalSchedule();
                 } else {
-                    const err = await response.json(); 
-                    alert(err.detail || "Registration data entry rejected.");
+                    alert(data.detail || "Registration data entry rejected.");
                 }
             } catch (err) {
                 alert("Target server connection dropped.");
             }
         }
 
-        function simulateLogin(type) {
-            toggleAccountMenu(false);
-            if(type === 'Admin') { alert('Admin Mode Active.'); } 
-            else {
-                const reg = prompt("Enter Registered Student Reg No:", loggedInRegNo || "");
-                if(reg) {
-                    loggedInRegNo = reg.trim();
-                    localStorage.setItem('student_reg_no', loggedInRegNo);
-                    document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> Reg: ${loggedInRegNo}`;
-                    alert('Log In Verified.');
-                    changePanel('panel-schedules', document.querySelectorAll('.nav-item')[2]);
-                    fetchPersonalSchedule();
+        function showStudentLoginForm() {
+            document.getElementById('student-login-panel').style.display = 'block';
+            document.getElementById('admin-login-panel').style.display = 'none';
+            document.getElementById('student-login-button').style.display = 'none';
+            document.getElementById('admin-login-button').style.display = 'none';
+            document.getElementById('logout-button').style.display = 'none';
+        }
+
+        function showAdminLoginForm() {
+            document.getElementById('admin-login-panel').style.display = 'block';
+            document.getElementById('student-login-panel').style.display = 'none';
+            document.getElementById('student-login-button').style.display = 'none';
+            document.getElementById('admin-login-button').style.display = 'none';
+            document.getElementById('logout-button').style.display = 'none';
+        }
+
+        async function studentLogin() {
+            const payload = {
+                reg_no: document.getElementById('login_reg_no').value.trim(),
+                password: document.getElementById('login_password').value
+            };
+            if (!payload.reg_no || !payload.password) {
+                alert('Please enter both registration number and password.');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/students/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || 'Login failed.');
+                    return;
                 }
+                loggedInRegNo = data.reg_no;
+                loggedInUserType = 'student';
+                loggedInStudentData = data;
+                localStorage.setItem('student_reg_no', loggedInRegNo);
+                localStorage.setItem('user_type', loggedInUserType);
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
+                updateAccountModal();
+                toggleAccountMenu(false);
+                changePanel('panel-schedules', document.querySelectorAll('.nav-item')[2]);
+                fetchPersonalSchedule();
+            } catch (err) {
+                alert('Unable to contact the student profile service.');
+            }
+        }
+
+        async function adminLogin() {
+            const payload = {
+                admin_password: document.getElementById('admin_password').value
+            };
+            if (!payload.admin_password) {
+                alert('Please enter the admin access code.');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/admin/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || 'Admin authentication failed.');
+                    return;
+                }
+                loggedInUserType = 'admin';
+                loggedInRegNo = null;
+                loggedInStudentData = null;
+                localStorage.setItem('user_type', loggedInUserType);
+                localStorage.removeItem('student_reg_no');
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode`;
+                updateAccountModal();
+                toggleAccountMenu(false);
+                changePanel('panel-admin', null);
+                fetchAdminStatus();
+            } catch (err) {
+                alert('Unable to contact admin authentication service.');
+            }
+        }
+
+        function promptAdminAccess() {
+            const adminKey = prompt('Enter admin access code:');
+            if (adminKey === 'campusadmin') {
+                loggedInUserType = 'admin';
+                localStorage.setItem('user_type', loggedInUserType);
+                loggedInRegNo = null;
+                localStorage.removeItem('student_reg_no');
+                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode`;
+                updateAccountModal();
+                toggleAccountMenu(false);
+                changePanel('panel-admin', null);
+                fetchAdminStatus();
+            } else {
+                alert('Admin code invalid.');
+            }
+        }
+
+        function logoutUser() {
+            loggedInRegNo = null;
+            loggedInUserType = null;
+            loggedInStudentData = null;
+            localStorage.removeItem('student_reg_no');
+            localStorage.removeItem('user_type');
+            document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine`;
+            document.getElementById('student-login-panel').style.display = 'none';
+            document.getElementById('admin-login-panel').style.display = 'none';
+            updateAccountModal();
+            toggleAccountMenu(false);
+            changePanel('panel-dashboard', document.querySelector('.nav-item'));
+        }
+
+        function updateAccountModal() {
+            const statusCard = document.getElementById('account-status-card');
+            const userDetails = document.getElementById('account-user-details');
+            const roleLabel = document.getElementById('account-role-label');
+            const logoutButton = document.getElementById('logout-button');
+            const studentLoginPanel = document.getElementById('student-login-panel');
+            const adminLoginPanel = document.getElementById('admin-login-panel');
+            const studentLoginBtn = document.getElementById('student-login-button');
+            const adminLoginBtn = document.getElementById('admin-login-button');
+
+            studentLoginPanel.style.display = 'none';
+            adminLoginPanel.style.display = 'none';
+
+            if (loggedInUserType === 'student' && loggedInRegNo) {
+                roleLabel.textContent = 'Student';
+                statusCard.style.display = 'block';
+                userDetails.innerHTML = `Reg No: <strong>${loggedInRegNo}</strong><br>Course: <strong>${loggedInStudentData?.course || 'N/A'}</strong><br>Units: <strong>${loggedInStudentData?.units || 'N/A'}</strong>`;
+                logoutButton.style.display = 'block';
+                studentLoginBtn.style.display = 'none';
+                adminLoginBtn.style.display = 'block';
+            } else if (loggedInUserType === 'admin') {
+                roleLabel.textContent = 'Administrator';
+                statusCard.style.display = 'block';
+                userDetails.innerHTML = `Admin access granted.<br>Use the admin panel to set rooms active/inactive.`;
+                logoutButton.style.display = 'block';
+                studentLoginBtn.style.display = 'block';
+                adminLoginBtn.style.display = 'none';
+            } else {
+                statusCard.style.display = 'none';
+                logoutButton.style.display = 'none';
+                studentLoginBtn.style.display = 'block';
+                adminLoginBtn.style.display = 'block';
+            }
+        }
+
+        async function fetchAdminStatus() {
+            const container = document.getElementById('admin-status-container');
+            if (loggedInUserType !== 'admin') {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size:0.85rem; padding: 12px;">Admin authentication required to see room override controls.</p>';
+                return;
+            }
+            container.innerHTML = '<p style="color: var(--text-muted); font-size:0.85rem; padding: 12px;">Loading room status records...</p>';
+            try {
+                const response = await fetch(`${API_URL}/rooms/status`);
+                const data = await response.json();
+                if (!Array.isArray(data) || data.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted); font-size:0.85rem; padding: 12px;">No rooms found.</p>';
+                    return;
+                }
+                let html = '';
+                data.forEach(room => {
+                    const status = room.status || 'AVAILABLE';
+                    html += `
+                        <div class="room-card" style="padding:14px;">
+                            <div class="card-top">
+                                <span class="room-title">${room.venue || 'Unknown Venue'}</span>
+                                <span class="status-pill ${status.toLowerCase()}">${status}</span>
+                            </div>
+                            <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule || 'No schedule info'}</span></div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                                <button class="btn-submit" style="flex:1; background:#10b981;" onclick="updateRoomOverride('${room.venue.replace(/'/g, "\\'")}', 'ACTIVE')">Set Active</button>
+                                <button class="btn-submit" style="flex:1; background:#f97316;" onclick="updateRoomOverride('${room.venue.replace(/'/g, "\\'")}', 'INACTIVE')">Set Inactive</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = '<p style="color: var(--busy-red); font-size:0.85rem; padding: 12px;">Unable to load admin room controls.</p>';
+            }
+        }
+
+        async function updateRoomOverride(venue, status) {
+            if (loggedInUserType !== 'admin') {
+                alert('Administrator login required to update room status.');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/verify`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ venue, status })
+                });
+                if (!response.ok) throw new Error('Update failed');
+                alert(`Room override set to ${status} for ${venue}`);
+                fetchAdminStatus();
+                fetchRoomStatus();
+            } catch (error) {
+                alert('Unable to update room status.');
+            }
+        }
+
+        async function releaseAllOverrides() {
+            if (loggedInUserType !== 'admin') {
+                alert('Administrator login required to reset overrides.');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/rooms/reset`, { method: 'POST' });
+                if (!response.ok) throw new Error('Reset failed');
+                alert('Room overrides cleared.');
+                fetchAdminStatus();
+                fetchRoomStatus();
+            } catch (error) {
+                alert('Unable to reset room overrides.');
+            }
+        }
+
+        async function fetchProfile() {
+            const container = document.getElementById('profile-container');
+            if (!loggedInRegNo || loggedInUserType !== 'student') {
+                container.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-muted);">
+                    <p style="font-size:1rem; margin-bottom:14px;">Student profile access requires login.</p>
+                    <button class="btn-submit" style="max-width:220px; margin: 0 auto;" onclick="toggleAccountMenu(true)">Open Account Portal</button>
+                </div>`;
+                return;
+            }
+            try {
+                const response = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
+                const data = await response.json();
+                if (!response.ok) {
+                    container.innerHTML = `<p style="padding:20px; color:var(--busy-red);">${data.detail || 'Unable to load profile dashboard.'}</p>`;
+                    return;
+                }
+                loggedInStudentData = data.student || loggedInStudentData;
+                const nextClass = Array.isArray(data.schedule) && data.schedule.length ? data.schedule[0] : null;
+                const scheduleCards = Array.isArray(data.schedule) && data.schedule.length
+                    ? data.schedule.map(item => `
+                        <div class="schedule-card" style="border-left: 4px solid var(--accent-blue);">
+                            <div class="card-top">
+                                <span class="room-title">${item.course_code || 'Unit'}</span>
+                                <span class="status-pill available">${item.venue || 'TBD'}</span>
+                            </div>
+                            <div style="font-size:0.85rem; color:var(--text-dark); margin-top:2px;">${item.course_name || 'Course session'}</div>
+                            <div class="schedule-line"><i class="fa-regular fa-clock"></i> <span>${item.time || 'N/A'}</span></div>
+                        </div>`).join('')
+                    : `<div class="room-card" style="padding:18px; text-align:center; color:var(--text-muted);">No classes scheduled for today.</div>`;
+
+                container.innerHTML = `
+                    <div class="room-card" style="background:#f8fafc;">
+                        <div class="card-top">
+                            <span class="room-title">Student Profile</span>
+                            <span class="status-pill available">${data.day || 'Today'}</span>
+                        </div>
+                        <div class="schedule-line"><strong>Reg No:</strong> ${data.student?.reg_no || loggedInRegNo}</div>
+                        <div class="schedule-line"><strong>Course:</strong> ${data.student?.course || 'N/A'}</div>
+                        <div class="schedule-line"><strong>Year:</strong> ${data.student?.year || 'N/A'}</div>
+                        <div class="schedule-line"><strong>Semester:</strong> ${data.student?.semester || 'N/A'}</div>
+                        <div class="schedule-line"><strong>Units:</strong> ${data.student?.units || 'N/A'}</div>
+                    </div>
+                    <div class="room-card">
+                        <div class="card-top">
+                            <span class="room-title">Next Scheduled Class</span>
+                            <span class="status-pill ${nextClass ? 'available' : 'busy'}">${nextClass ? nextClass.course_code : 'No Classes'}</span>
+                        </div>
+                        ${nextClass ? `
+                            <div class="schedule-line"><i class="fa-regular fa-location-dot"></i> <span>${nextClass.venue || 'TBD'}</span></div>
+                            <div class="schedule-line"><i class="fa-regular fa-clock"></i> <span>${nextClass.time || 'N/A'}</span></div>
+                        ` : `<div style="padding:12px; color:var(--text-muted);">No active class scheduled for today.</div>`}
+                    </div>
+                    <div class="section-title" style="margin-top:0;">Today's Class Breakdown</div>
+                    ${scheduleCards}
+                `;
+            } catch (e) {
+                container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem; padding:10px;">⚠️ Error loading student profile dashboard.</p>`;
             }
         }
 
@@ -414,12 +739,18 @@
                 if (!data || !data.schedule || !Array.isArray(data.schedule) || data.schedule.length === 0) {
                     container.innerHTML = `
                         <p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day || 'Today'}</p>
+                        <p style="font-size:0.85rem; color:var(--text-dark); margin-bottom:6px;">Course: <strong>${data.student?.course || 'Unknown'}</strong></p>
+                        <p style="font-size:0.85rem; color:var(--text-dark); margin-bottom:6px;">Units: <strong>${data.student?.units || 'Not set'}</strong></p>
                         <p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:20px;">🎉 No classes scheduled for your units today!</p>
                     `;
                     return;
                 }
 
-                let htmlContent = `<p style="font-size:0.8rem; font-weight:700; margin-bottom:10px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day}</p>`;
+                let htmlContent = `
+                    <p style="font-size:0.8rem; font-weight:700; margin-bottom:8px; color:var(--accent-blue)">📅 Active Tracking Day: ${data.day}</p>
+                    <p style="font-size:0.85rem; color:var(--text-dark); margin-bottom:6px;">Course: <strong>${data.student?.course || 'Unknown'}</strong></p>
+                    <p style="font-size:0.85rem; color:var(--text-dark); margin-bottom:14px;">Units: <strong>${data.student?.units || 'Not set'}</strong></p>
+                `;
                 
                 data.schedule.forEach(item => {
                     htmlContent += `

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<Style id='pointStyle'>
+<IconStyle>
+<Icon><href>https://map-marker.robotukai.com/7FF00F</href></Icon>
+</IconStyle>
+</Style>
+<Placemark>
+<name>Vice chancellors office </name>
+<description></description>
+<styleUrl>#pointStyle</styleUrl>
+<Point>
+<coordinates>
+37.98975605517626,-0.0928637351320913,0
+</coordinates>
+</Point>
+</Placemark>
+</Document>
+</kml>

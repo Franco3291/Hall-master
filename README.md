@@ -1,4 +1,4 @@
-# Hall-master
+#Smart Campus Matrix
 
 Smart Campus Matrix is a campus-navigation and room-status app built with a FastAPI backend, SQLite, and a mobile-style static frontend.
 

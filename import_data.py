@@ -18,9 +18,9 @@ def import_campus_data():
             for row in reader:
                 if not row.get('name'): continue
                 cursor.execute('''
-                    INSERT INTO nodes (name, floor, description, occupancy_status, last_verified)
-                    VALUES (?, ?, ?, 'UNVERIFIED', 'Never')
-                ''', (row['name'], int(row['floor'] or 1), row['description']))
+                    INSERT INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified)
+                    VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', 'Never')
+                ''', (row['name'], int(row['floor'] or 1), row['description'], float(row.get('lat', 0)), float(row.get('lng', 0))))
         print("✅ Nodes table updated successfully!")
     else:
         print("❌ Error: nodes.csv not found.")

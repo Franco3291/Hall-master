@@ -8,8 +8,10 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS nodes (
             name TEXT PRIMARY KEY,
-            floor INTEGER,
+            floor INTEGER DEFAULT 1,
             description TEXT,
+            lat REAL DEFAULT 0.0,
+            lng REAL DEFAULT 0.0,
             occupancy_status TEXT DEFAULT 'UNVERIFIED',
             last_verified TEXT DEFAULT 'Never'
         )

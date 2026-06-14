@@ -66,69 +66,65 @@ class AdminLoginRequest(BaseModel):
 # ==========================================
 @app.get("/rooms/status")
 def get_room_status():
-    conn = sqlite3.connect('campus_navigation.db')
-    conn.row_factory = sqlite3.Row
-    
-    # Fetch EVERY unique venue directly from your parsed PDF timetable data
-    timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
-    
-    current_day = datetime.now().strftime('%A')
-    current_time = datetime.now().strftime('%H:%M')
-    
-    rooms_status_feed = []
-    
-    for row in timetable_venues:
-        venue_name = row['venue']
-        if not venue_name:
-            continue
-            
-        # Check if there is an active class right now for this venue
-        active_class = conn.execute('''
-            SELECT course_code, course_name, end_time 
-            FROM timetable 
-            WHERE venue = ? AND day_of_week = ? AND ? BETWEEN start_time AND end_time
-            LIMIT 1
-        ''', (venue_name, current_day, current_time)).fetchone()
+    with get_db() as conn:
+        # Fetch EVERY unique venue directly from your parsed PDF timetable data
+        timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
         
-        # Check for crowdsourced override flags in the nodes tracking system
-        override = conn.execute(
-            "SELECT occupancy_status, last_verified FROM nodes WHERE name = ?", 
-            (venue_name,)
-        ).fetchone()
+        current_day = datetime.now().strftime('%A')
+        current_time = datetime.now().strftime('%H:%M')
         
-        status = "AVAILABLE"
-        schedule_text = "📅 No Class Scheduled Right Now"
-        time_verified = "⏱️ Synced with System Clock"
+        rooms_status_feed = []
         
-        if active_class:
-            status = "BUSY"
-            schedule_text = f"🔴 Ongoing: {active_class['course_code']} - {active_class['course_name']} (Ends {active_class['end_time']})"
-        else:
-            # Look up next upcoming class for this room today
-            next_class = conn.execute('''
-                SELECT course_code, start_time 
+        for row in timetable_venues:
+            venue_name = row['venue']
+            if not venue_name:
+                continue
+                
+            # Check if there is an active class right now for this venue
+            active_class = conn.execute('''
+                SELECT course_code, course_name, end_time 
                 FROM timetable 
-                WHERE venue = ? AND day_of_week = ? AND start_time > ?
-                ORDER BY start_time ASC LIMIT 1
+                WHERE venue = ? AND day_of_week = ? AND ? BETWEEN start_time AND end_time
+                LIMIT 1
             ''', (venue_name, current_day, current_time)).fetchone()
-            if next_class:
-                schedule_text = f"🟢 Inactive: Next class {next_class['course_code']} at {next_class['start_time']}"
-        
-        # Apply crowdsourced manual reporting changes if they exist
-        if override and override['occupancy_status'] != 'UNVERIFIED':
-            status = override['occupancy_status']
-            schedule_text = f"👥 Room marked as manual {status} via crowd override."
-            time_verified = f"Verified at: {override['last_verified']}"
             
-        rooms_status_feed.append({
-            "venue": venue_name,
-            "status": status,
-            "current_schedule": schedule_text,
-            "last_verified": time_verified
-        })
-        
-    conn.close()
-    return rooms_status_feed
+            # Check for crowdsourced override flags in the nodes tracking system
+            override = conn.execute(
+                "SELECT occupancy_status, last_verified FROM nodes WHERE name = ?", 
+                (venue_name,)
+            ).fetchone()
+            
+            status = "AVAILABLE"
+            schedule_text = "📅 No Class Scheduled Right Now"
+            time_verified = "⏱️ Synced with System Clock"
+            
+            if active_class:
+                status = "BUSY"
+                schedule_text = f"🔴 Ongoing: {active_class['course_code']} - {active_class['course_name']} (Ends {active_class['end_time']})"
+            else:
+                # Look up next upcoming class for this room today
+                next_class = conn.execute('''
+                    SELECT course_code, start_time 
+                    FROM timetable 
+                    WHERE venue = ? AND day_of_week = ? AND start_time > ?
+                    ORDER BY start_time ASC LIMIT 1
+                ''', (venue_name, current_day, current_time)).fetchone()
+                if next_class:
+                    schedule_text = f"🟢 Inactive: Next class {next_class['course_code']} at {next_class['start_time']}"
+            
+            # Apply crowdsourced manual reporting changes if they exist
+            if override and override['occupancy_status'] != 'UNVERIFIED':
+                status = override['occupancy_status']
+                schedule_text = f"👥 Room marked as manual {status} via crowd override."
+                time_verified = f"Verified at: {override['last_verified']}"
+                
+            rooms_status_feed.append({
+                "venue": venue_name,
+                "status": status,
+                "current_schedule": schedule_text,
+                "last_verified": time_verified
+            })
+        return rooms_status_feed
 
 
 # ==========================================

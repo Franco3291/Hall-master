@@ -37,6 +37,8 @@ def extract_kml_data(kml_filename):
                 if geom.geom_type == 'Point':
                     nodes.append({
                         "name": name,
+                        "lat": geom.y,
+                        "lng": geom.x,
                         "floor": 1,
                         "description": f"Campus facility: {name}"
                     })
@@ -73,7 +75,7 @@ def extract_kml_data(kml_filename):
 
     # Write out to nodes.csv
     with open('nodes.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "floor", "description"])
+        writer = csv.DictWriter(f, fieldnames=["name", "lat", "lng", "floor", "description"])
         writer.writeheader()
         writer.writerows(nodes)
     print(f"✅ Extracted {len(nodes)} locations into nodes.csv")

@@ -56,6 +56,12 @@
         .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; background: none; border: none; cursor: pointer; width: 25%; height: 100%; justify-content: center; font-size: 0.7rem; font-weight: 600; gap: 4px; }
         .nav-item.active { color: white; }
         .nav-item i { font-size: 1.2rem; }
+<<<<<<< HEAD
+=======
+        .filter-btn { padding: 8px 12px; background: #f1f5f9; color: var(--text-dark); border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .filter-btn:hover { background: #e2e8f0; }
+        .filter-btn.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
     </style>
 </head>
 <body>
@@ -73,6 +79,15 @@
             
             <div id="panel-dashboard" class="view-panel active">
                 <div class="section-title">Live Space Allocations</div>
+<<<<<<< HEAD
+=======
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <button class="filter-btn active" onclick="filterRooms('all')" style="flex: 1; min-width: 70px;">All</button>
+                    <button class="filter-btn" onclick="filterRooms('scheduled')" style="flex: 1; min-width: 70px;">Scheduled</button>
+                    <button class="filter-btn" onclick="filterRooms('occupied')" style="flex: 1; min-width: 70px;">Occupied</button>
+                    <button class="filter-btn" onclick="filterRooms('empty')" style="flex: 1; min-width: 70px;">Empty</button>
+                </div>
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
                 <div id="rooms-list-container"></div>
             </div>
 
@@ -199,6 +214,11 @@
         let loggedInRegNo = localStorage.getItem('student_reg_no') || null;
         let loggedInUserType = localStorage.getItem('user_type') || null;
         let loggedInStudentData = null;
+<<<<<<< HEAD
+=======
+        let currentFilter = 'all';
+        let allRooms = [];
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
 
         function restoreSession() {
             if (loggedInRegNo && loggedInUserType === 'student') {
@@ -774,14 +794,24 @@
             try {
                 const response = await fetch(`${API_URL}/rooms/status`);
                 const data = await response.json();
+<<<<<<< HEAD
                 const container = document.getElementById('rooms-list-container');
                 container.innerHTML = '';
                 
                 if(!Array.isArray(data) || data.length === 0){
+=======
+                allRooms = data || [];
+                
+                const container = document.getElementById('rooms-list-container');
+                container.innerHTML = '';
+                
+                if(!Array.isArray(allRooms) || allRooms.length === 0){
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
                     container.innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>📅 No active allocations found.</p>";
                     return;
                 }
 
+<<<<<<< HEAD
                 data.forEach(room => {
                     const statusVal = room.status || "AVAILABLE";
                     container.innerHTML += `
@@ -795,11 +825,72 @@
                         </div>
                     `;
                 });
+=======
+                displayFilteredRooms();
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
             } catch (error) {
                 document.getElementById('rooms-list-container').innerHTML = "<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>🔄 Looking for FastAPI backend pipelines connection...</p>";
             }
         }
 
+<<<<<<< HEAD
+=======
+        function filterRooms(filterType) {
+            currentFilter = filterType;
+            
+            // Update active button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            displayFilteredRooms();
+        }
+
+        function displayFilteredRooms() {
+            const container = document.getElementById('rooms-list-container');
+            let filteredRooms = allRooms;
+
+            // Apply filter logic
+            if (currentFilter === 'scheduled') {
+                filteredRooms = allRooms.filter(room => {
+                    const schedule = (room.current_schedule || '').toLowerCase();
+                    return schedule && schedule !== 'empty' && schedule !== 'no schedule info';
+                });
+            } else if (currentFilter === 'occupied') {
+                filteredRooms = allRooms.filter(room => {
+                    const status = (room.status || '').toUpperCase();
+                    return status === 'BUSY' || status === 'OCCUPIED';
+                });
+            } else if (currentFilter === 'empty') {
+                filteredRooms = allRooms.filter(room => {
+                    const status = (room.status || '').toUpperCase();
+                    return status === 'AVAILABLE';
+                });
+            }
+
+            if (filteredRooms.length === 0) {
+                container.innerHTML = `<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>📭 No rooms match the "${currentFilter}" filter.</p>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            filteredRooms.forEach(room => {
+                const statusVal = room.status || "AVAILABLE";
+                container.innerHTML += `
+                    <div class="room-card">
+                        <div class="card-top">
+                            <span class="room-title">${room.venue || 'Venue'}</span>
+                            <span class="status-pill ${statusVal.toLowerCase()}">${statusVal}</span>
+                        </div>
+                        <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule || 'Empty'}</span></div>
+                        <div style="font-size:0.7rem; color:#94a3b8;"><i class="fa-regular fa-clock"></i> <span>${room.last_verified || 'Synced'}</span></div>
+                    </div>
+                `;
+            });
+        }
+
+>>>>>>> aca5483f7dc0f4f543bb87d9c45a506883c96a1f
         window.onload = () => { 
             fetchRoomStatus(); 
             setInterval(fetchRoomStatus, 8000); 

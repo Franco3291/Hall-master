@@ -17,6 +17,15 @@ def parse_and_load_pdf(pdf_path):
     conn = sqlite3.connect('campus_navigation.db')
     cursor = conn.cursor()
 
+    # Ensure the table exists before attempting to clear it
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS timetable (
+            course_code TEXT, course_name TEXT, 
+            day_of_week TEXT, start_time TEXT, 
+            end_time TEXT, venue TEXT
+        )
+    ''')
+
     # Clear any previous prototype timetable records
     cursor.execute("DELETE FROM timetable")
     

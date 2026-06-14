@@ -33,6 +33,8 @@ def clean_compile_kmls(folder_path):
                 if len(coord_set) >= 2:
                     all_nodes.append({
                         "name": base_name, # Names the node after your KML filename
+                        "lat": float(coord_set[1]),
+                        "lng": float(coord_set[0]),
                         "floor": 1,
                         "description": f"Imported campus coordinate mark"
                     })
@@ -71,11 +73,12 @@ def clean_compile_kmls(folder_path):
         for file_name in files:
             name_attr = os.path.splitext(file_name)[0]
             if " to " not in name_attr.lower():
-                all_nodes.append({"name": name_attr.strip(), "floor": 1, "description": "Auto-mapped node point"})
+                # Note: Fallback nodes lack coordinates and may fail DB constraints
+                all_nodes.append({"name": name_attr.strip(), "lat": 0.0, "lng": 0.0, "floor": 1, "description": "Auto-mapped node point (missing coords)"})
 
     # Write results
     with open('nodes.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "floor", "description"])
+        writer = csv.DictWriter(f, fieldnames=["name", "lat", "lng", "floor", "description"])
         writer.writeheader()
         writer.writerows(all_nodes)
 

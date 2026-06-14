@@ -1,9 +1,11 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import datetime
 from contextlib import contextmanager
+import shutil
 import sqlite3
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Campus@123')
@@ -20,7 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Helper for database management
+# Set up storage for uploaded images
+UPLOAD_DIR = "static/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @contextmanager
 def get_db():
     conn = sqlite3.connect('campus_navigation.db')
@@ -60,65 +66,69 @@ class AdminLoginRequest(BaseModel):
 # ==========================================
 @app.get("/rooms/status")
 def get_room_status():
-    with get_db() as conn:
-        # Fetch EVERY unique venue directly from your parsed PDF timetable data
-        timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    
+    # Fetch EVERY unique venue directly from your parsed PDF timetable data
+    timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
+    
+    current_day = datetime.now().strftime('%A')
+    current_time = datetime.now().strftime('%H:%M')
+    
+    rooms_status_feed = []
+    
+    for row in timetable_venues:
+        venue_name = row['venue']
+        if not venue_name:
+            continue
+            
+        # Check if there is an active class right now for this venue
+        active_class = conn.execute('''
+            SELECT course_code, course_name, end_time 
+            FROM timetable 
+            WHERE venue = ? AND day_of_week = ? AND ? BETWEEN start_time AND end_time
+            LIMIT 1
+        ''', (venue_name, current_day, current_time)).fetchone()
         
-        current_day = datetime.now().strftime('%A')
-        current_time = datetime.now().strftime('%H:%M')
+        # Check for crowdsourced override flags in the nodes tracking system
+        override = conn.execute(
+            "SELECT occupancy_status, last_verified FROM nodes WHERE name = ?", 
+            (venue_name,)
+        ).fetchone()
         
-        rooms_status_feed = []
+        status = "AVAILABLE"
+        schedule_text = "📅 No Class Scheduled Right Now"
+        time_verified = "⏱️ Synced with System Clock"
         
-        for row in timetable_venues:
-            venue_name = row['venue']
-            if not venue_name:
-                continue
-                
-            # Check if there is an active class right now for this venue
-            active_class = conn.execute('''
-                SELECT course_code, course_name, end_time 
+        if active_class:
+            status = "BUSY"
+            schedule_text = f"🔴 Ongoing: {active_class['course_code']} - {active_class['course_name']} (Ends {active_class['end_time']})"
+        else:
+            # Look up next upcoming class for this room today
+            next_class = conn.execute('''
+                SELECT course_code, start_time 
                 FROM timetable 
-                WHERE venue = ? AND day_of_week = ? AND ? BETWEEN start_time AND end_time
-                LIMIT 1
+                WHERE venue = ? AND day_of_week = ? AND start_time > ?
+                ORDER BY start_time ASC LIMIT 1
             ''', (venue_name, current_day, current_time)).fetchone()
+            if next_class:
+                schedule_text = f"🟢 Inactive: Next class {next_class['course_code']} at {next_class['start_time']}"
+        
+        # Apply crowdsourced manual reporting changes if they exist
+        if override and override['occupancy_status'] != 'UNVERIFIED':
+            status = override['occupancy_status']
+            schedule_text = f"👥 Room marked as manual {status} via crowd override."
+            time_verified = f"Verified at: {override['last_verified']}"
             
-            # Check for crowdsourced override flags in the nodes tracking system
-            override = conn.execute(
-                "SELECT occupancy_status, last_verified FROM nodes WHERE name = ?", 
-                (venue_name,)
-            ).fetchone()
-            
-            status = "AVAILABLE"
-            schedule_text = "📅 No Class Scheduled Right Now"
-            time_verified = "⏱️ Synced with System Clock"
-            
-            if active_class:
-                status = "BUSY"
-                schedule_text = f"🔴 Ongoing: {active_class['course_code']} - {active_class['course_name']} (Ends {active_class['end_time']})"
-            else:
-                # Look up next upcoming class for this room today
-                next_class = conn.execute('''
-                    SELECT course_code, start_time 
-                    FROM timetable 
-                    WHERE venue = ? AND day_of_week = ? AND start_time > ?
-                    ORDER BY start_time ASC LIMIT 1
-                ''', (venue_name, current_day, current_time)).fetchone()
-                if next_class:
-                    schedule_text = f"🟢 Inactive: Next class {next_class['course_code']} at {next_class['start_time']}"
-            
-            # Apply crowdsourced manual reporting changes if they exist
-            if override and override['occupancy_status'] != 'UNVERIFIED':
-                status = override['occupancy_status']
-                schedule_text = f"👥 Room marked as manual {status} via crowd override."
-                time_verified = f"Verified at: {override['last_verified']}"
-                
-            rooms_status_feed.append({
-                "venue": venue_name,
-                "status": status,
-                "current_schedule": schedule_text,
-                "last_verified": time_verified
-            })
-        return rooms_status_feed
+        rooms_status_feed.append({
+            "venue": venue_name,
+            "status": status,
+            "current_schedule": schedule_text,
+            "last_verified": time_verified
+        })
+        
+    conn.close()
+    return rooms_status_feed
 
 
 # ==========================================
@@ -126,9 +136,13 @@ def get_room_status():
 # ==========================================
 @app.get("/api/geo-nodes")
 def get_geo_nodes():
-    with get_db() as conn:
-        rows = conn.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
-        
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    rows = cursor.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
+    conn.close()
+    
     nodes_list = []
     for row in rows:
         nodes_list.append({
@@ -145,24 +159,30 @@ def get_geo_nodes():
 # ==========================================
 @app.post("/students/register")
 def register_student(req: StudentRegisterRequest):
-    with get_db() as conn:
-        try:
-            conn.execute('''
-                INSERT INTO students (reg_no, password, course, year, semester, units)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (req.reg_no, req.password, req.course, req.year, req.semester, req.units))
-            conn.commit()
-            return {"status": "success", "message": "Student registered successfully!"}
-        except sqlite3.IntegrityError:
-            raise HTTPException(status_code=400, detail="Registration number already exists.")
+    conn = sqlite3.connect('campus_navigation.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO students (reg_no, password, course, year, semester, units)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (req.reg_no, req.password, req.course, req.year, req.semester, req.units))
+        conn.commit()
+        return {"status": "success", "message": "Student registered successfully!"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Registration number already exists.")
+    finally:
+        conn.close()
 
 @app.post("/students/login")
 def login_student(req: StudentLoginRequest):
-    with get_db() as conn:
-        student = conn.execute(
-            "SELECT reg_no, course, year, semester, units FROM students WHERE reg_no = ? AND password = ?",
-            (req.reg_no, req.password)
-        ).fetchone()
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    student = cursor.execute(
+        "SELECT reg_no, course, year, semester, units FROM students WHERE reg_no = ? AND password = ?",
+        (req.reg_no, req.password)
+    ).fetchone()
+    conn.close()
     if not student:
         raise HTTPException(status_code=401, detail="Invalid registration number or password.")
     return {
@@ -184,51 +204,51 @@ def login_admin(req: AdminLoginRequest):
 # ==========================================
 @app.get("/students/schedule/{reg_no}")
 def get_student_schedule(reg_no: str):
-    with get_db() as conn:
-        student = conn.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
-        if not student:
-            raise HTTPException(status_code=404, detail="Student profile not found")
-        
-        registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
-        current_day = datetime.now().strftime('%A')
-        
-        if not registered_units:
-            return {
-                "day": current_day,
-                "student": dict(student),
-                "schedule": []
-            }
-        
-        placeholders = ','.join('?' for _ in registered_units)
-        query = f'''
-            SELECT course_code, course_name, start_time, end_time, venue 
-            FROM timetable 
-            WHERE UPPER(day_of_week) = UPPER(?) 
-              AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
-            ORDER BY start_time ASC
-        '''
-        upper_units = [u.upper() for u in registered_units]
-        search_params = [current_day] + upper_units + upper_units
-        
-        try:
-            schedule_rows = conn.execute(query, search_params).fetchall()
-        except Exception as e:
-            return {"day": current_day, "schedule": [], "error": str(e)}
+    conn = sqlite3.connect('campus_navigation.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
-    schedules = []
-    for row in schedule_rows:
-        schedules.append({
-            "course_code": str(row['course_code'] or "UNIT"),
-            "course_name": str(row['course_name'] or "Lecture Session"),
-            "time": f"{row['start_time'] or '00:00'} - {row['end_time'] or '00:00'}",
-            "venue": str(row['venue'] or "Unassigned Venue")
-        })
+    student = cursor.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
+    if not student:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Student profile not found")
     
-    return {
-        "day": current_day,
-        "student": dict(student),
-        "schedule": schedules
-    }
+    registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
+    current_day = datetime.now().strftime('%A')
+    
+    if not registered_units:
+        conn.close()
+        return {
+            "day": current_day,
+            "student": {
+                "reg_no": reg_no,
+                "course": student['course'],
+                "year": student['year'],
+                "semester": student['semester'],
+                "units": student['units']
+            },
+            "schedule": []
+        }
+    
+    placeholders = ','.join('?' for _ in registered_units)
+    query = f'''
+        SELECT course_code, course_name, start_time, end_time, venue 
+        FROM timetable 
+        WHERE UPPER(day_of_week) = UPPER(?) 
+          AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
+        ORDER BY start_time ASC
+    '''
+    # We use the registered units list twice in the query (course_code OR venue),
+    # so duplicate the params to match the two placeholder groups.
+    upper_units = [u.upper() for u in registered_units]
+    search_params = [current_day] + upper_units + upper_units
+    
+    try:
+        schedule_rows = cursor.execute(query, search_params).fetchall()
+    except Exception as e:
+        conn.close()
+        return {"day": current_day, "schedule": [], "error": str(e)}
+    conn.close()
     
     schedules = []
     for row in schedule_rows:
@@ -262,30 +282,10 @@ def get_student_schedule(reg_no: str):
 # ==========================================
 @app.post("/verify")
 def verify_room(req: VerificationRequest):
-    conn = sqlite3.connect('campus_navigation.db')
-    cursor = conn.cursor()
-    now_str = datetime.now().strftime('%H:%M:%S')
-    
-    cursor.execute("SELECT name FROM nodes WHERE name = ?", (req.venue,))
-    exists = cursor.fetchone()
-    
-    if not exists:
-        cursor.execute('''
-            INSERT INTO nodes (name, floor, description, occupancy_status, last_verified) 
-            VALUES (?, 1, 'Auto-generated via user update', ?, ?)
-        ''', (req.venue, req.status, now_str))
-    else:
-        cursor.execute('''
-            UPDATE nodes 
-            SET occupancy_status = ?, last_verified = ? 
-            WHERE name = ?
-        ''', (req.status, now_str, req.venue))
     with get_db() as conn:
         now_str = datetime.now().strftime('%H:%M:%S')
         exists = conn.execute("SELECT name FROM nodes WHERE name = ?", (req.venue,)).fetchone()
         
-    conn.commit()
-    conn.close()
         if not exists:
             conn.execute('''
                 INSERT INTO nodes (name, floor, description, occupancy_status, last_verified) 
@@ -311,9 +311,6 @@ def reset_rooms():
     cursor.execute("UPDATE nodes SET occupancy_status = 'UNVERIFIED', last_verified = 'Never'")
     conn.commit()
     conn.close()
-    with get_db() as conn:
-        conn.execute("UPDATE nodes SET occupancy_status = 'UNVERIFIED', last_verified = 'Never'")
-        conn.commit()
     return {"message": "Telemetry cleared successfully"}
 
 
@@ -324,9 +321,6 @@ def reset_rooms():
 def navigate(req: NavigationRequest):
     conn = sqlite3.connect('campus_navigation.db')
     conn.row_factory = sqlite3.Row
-    with get_db() as conn:
-        nodes = [r['name'] for r in conn.execute("SELECT name FROM nodes").fetchall()]
-        edges = conn.execute("SELECT node_from, node_to, distance_meters FROM edges").fetchall()
     
     nodes = [r['name'] for r in conn.execute("SELECT name FROM nodes").fetchall()]
     edges = conn.execute("SELECT node_from, node_to, distance_meters FROM edges").fetchall()

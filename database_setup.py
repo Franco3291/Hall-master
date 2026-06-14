@@ -13,7 +13,8 @@ def init_database():
             lat REAL DEFAULT 0.0,
             lng REAL DEFAULT 0.0,
             occupancy_status TEXT DEFAULT 'UNVERIFIED',
-            last_verified TEXT DEFAULT 'Never'
+            last_verified TEXT DEFAULT 'Never',
+            image_url TEXT
         )
     ''')
     

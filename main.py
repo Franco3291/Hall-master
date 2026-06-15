@@ -60,6 +60,21 @@ class StudentLoginRequest(BaseModel):
 class AdminLoginRequest(BaseModel):
     admin_password: str
 
+@app.get("/health")
+def health_check():
+    with get_db() as conn:
+        node_count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+        edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+        schedule_count = conn.execute("SELECT COUNT(*) FROM timetable").fetchone()[0]
+    return {
+        "status": "online",
+        "database": "connected",
+        "counts": {
+            "nodes": node_count,
+            "edges": edge_count,
+            "schedules": schedule_count
+        }
+    }
 
 # ==========================================
 # 🧭 ENDPOINT 1: THE TIMETABLE ALLOCATION FEED
@@ -132,22 +147,16 @@ def get_room_status():
 # ==========================================
 @app.get("/api/geo-nodes")
 def get_geo_nodes():
-    conn = sqlite3.connect('campus_navigation.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    rows = cursor.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
-    conn.close()
-    
-    nodes_list = []
-    for row in rows:
-        nodes_list.append({
-            "name": row['name'],
-            "lat": row['lat'],
-            "lng": row['lng'],
-            "description": row['description']
-        })
-    return nodes_list
+    with get_db() as conn:
+        rows = conn.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
+        return [
+            {
+                "name": row['name'],
+                "lat": row['lat'],
+                "lng": row['lng'],
+                "description": row['description']
+            } for row in rows
+        ]
 
 
 # ==========================================
@@ -155,39 +164,33 @@ def get_geo_nodes():
 # ==========================================
 @app.post("/students/register")
 def register_student(req: StudentRegisterRequest):
-    conn = sqlite3.connect('campus_navigation.db')
-    cursor = conn.cursor()
-    try:
-        cursor.execute('''
-            INSERT INTO students (reg_no, password, course, year, semester, units)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (req.reg_no, req.password, req.course, req.year, req.semester, req.units))
-        conn.commit()
-        return {"status": "success", "message": "Student registered successfully!"}
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Registration number already exists.")
-    finally:
-        conn.close()
+    with get_db() as conn:
+        try:
+            conn.execute('''
+                INSERT INTO students (reg_no, password, course, year, semester, units)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (req.reg_no, req.password, req.course, req.year, req.semester, req.units))
+            conn.commit()
+            return {"status": "success", "message": "Student registered successfully!"}
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=400, detail="Registration number already exists.")
 
 @app.post("/students/login")
 def login_student(req: StudentLoginRequest):
-    conn = sqlite3.connect('campus_navigation.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    student = cursor.execute(
-        "SELECT reg_no, course, year, semester, units FROM students WHERE reg_no = ? AND password = ?",
-        (req.reg_no, req.password)
-    ).fetchone()
-    conn.close()
-    if not student:
-        raise HTTPException(status_code=401, detail="Invalid registration number or password.")
-    return {
-        "reg_no": student['reg_no'],
-        "course": student['course'],
-        "year": student['year'],
-        "semester": student['semester'],
-        "units": student['units']
-    }
+    with get_db() as conn:
+        student = conn.execute(
+            "SELECT reg_no, course, year, semester, units FROM students WHERE reg_no = ? AND password = ?",
+            (req.reg_no, req.password)
+        ).fetchone()
+        if not student:
+            raise HTTPException(status_code=401, detail="Invalid registration number or password.")
+        return {
+            "reg_no": student['reg_no'],
+            "course": student['course'],
+            "year": student['year'],
+            "semester": student['semester'],
+            "units": student['units']
+        }
 
 @app.post("/admin/login")
 def login_admin(req: AdminLoginRequest):
@@ -200,20 +203,46 @@ def login_admin(req: AdminLoginRequest):
 # ==========================================
 @app.get("/students/schedule/{reg_no}")
 def get_student_schedule(reg_no: str):
-    conn = sqlite3.connect('campus_navigation.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    student = cursor.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
-    if not student:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Student profile not found")
-    
-    registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
-    current_day = datetime.now().strftime('%A')
-    
-    if not registered_units:
-        conn.close()
+    with get_db() as conn:
+        student = conn.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student profile not found")
+        
+        registered_units = [u.strip() for u in student['units'].split(',') if u.strip()]
+        current_day = datetime.now().strftime('%A')
+        
+        if not registered_units:
+            return {
+                "day": current_day,
+                "student": dict(student),
+                "schedule": []
+            }
+        
+        placeholders = ','.join('?' for _ in registered_units)
+        query = f'''
+            SELECT course_code, course_name, start_time, end_time, venue 
+            FROM timetable 
+            WHERE UPPER(day_of_week) = UPPER(?) 
+              AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
+            ORDER BY start_time ASC
+        '''
+        upper_units = [u.upper() for u in registered_units]
+        search_params = [current_day] + upper_units + upper_units
+        
+        try:
+            schedule_rows = conn.execute(query, search_params).fetchall()
+        except Exception as e:
+            return {"day": current_day, "schedule": [], "error": str(e)}
+        
+        schedules = []
+        for row in schedule_rows:
+            schedules.append({
+                "course_code": str(row['course_code']) if row['course_code'] else "UNIT",
+                "course_name": str(row['course_name']) if row['course_name'] else "Lecture Session",
+                "time": f"{row['start_time']} - {row['end_time']}",
+                "venue": str(row['venue']) if row['venue'] else "Unassigned Venue"
+            })
+        
         return {
             "day": current_day,
             "student": {
@@ -223,55 +252,8 @@ def get_student_schedule(reg_no: str):
                 "semester": student['semester'],
                 "units": student['units']
             },
-            "schedule": []
+            "schedule": schedules
         }
-    
-    placeholders = ','.join('?' for _ in registered_units)
-    query = f'''
-        SELECT course_code, course_name, start_time, end_time, venue 
-        FROM timetable 
-        WHERE UPPER(day_of_week) = UPPER(?) 
-          AND (UPPER(course_code) IN ({placeholders}) OR UPPER(venue) IN ({placeholders}))
-        ORDER BY start_time ASC
-    '''
-    # We use the registered units list twice in the query (course_code OR venue),
-    # so duplicate the params to match the two placeholder groups.
-    upper_units = [u.upper() for u in registered_units]
-    search_params = [current_day] + upper_units + upper_units
-    
-    try:
-        schedule_rows = cursor.execute(query, search_params).fetchall()
-    except Exception as e:
-        conn.close()
-        return {"day": current_day, "schedule": [], "error": str(e)}
-    conn.close()
-    
-    schedules = []
-    for row in schedule_rows:
-        code = row['course_code'] if ('course_code' in row.keys() and row['course_code']) else "UNIT"
-        name = row['course_name'] if ('course_name' in row.keys() and row['course_name']) else "Lecture Session"
-        start = row['start_time'] if ('start_time' in row.keys() and row['start_time']) else "00:00"
-        end = row['end_time'] if ('end_time' in row.keys() and row['end_time']) else "00:00"
-        rm_venue = row['venue'] if ('venue' in row.keys() and row['venue']) else "Unassigned Venue"
-        
-        schedules.append({
-            "course_code": str(code),
-            "course_name": str(name),
-            "time": f"{start} - {end}",
-            "venue": str(rm_venue)
-        })
-    
-    return {
-        "day": current_day,
-        "student": {
-            "reg_no": reg_no,
-            "course": student['course'],
-            "year": student['year'],
-            "semester": student['semester'],
-            "units": student['units']
-        },
-        "schedule": schedules
-    }
 
 # ==========================================
 # 👥 ENDPOINT 5: CROWDSOURCED OVERRIDE REPORTING
@@ -302,12 +284,10 @@ def verify_room(req: VerificationRequest):
 # ==========================================
 @app.post("/rooms/reset")
 def reset_rooms():
-    conn = sqlite3.connect('campus_navigation.db')
-    cursor = conn.cursor()
-    cursor.execute("UPDATE nodes SET occupancy_status = 'UNVERIFIED', last_verified = 'Never'")
-    conn.commit()
-    conn.close()
-    return {"message": "Telemetry cleared successfully"}
+    with get_db() as conn:
+        conn.execute("UPDATE nodes SET occupancy_status = 'UNVERIFIED', last_verified = 'Never'")
+        conn.commit()
+        return {"message": "Telemetry cleared successfully"}
 
 
 # ==========================================
@@ -315,45 +295,43 @@ def reset_rooms():
 # ==========================================
 @app.post("/navigate")
 def navigate(req: NavigationRequest):
-    conn = sqlite3.connect('campus_navigation.db')
-    conn.row_factory = sqlite3.Row
-    
-    nodes = [r['name'] for r in conn.execute("SELECT name FROM nodes").fetchall()]
-    edges = conn.execute("SELECT node_from, node_to, distance_meters FROM edges").fetchall()
-    conn.close()
-    
-    if req.start_node not in nodes or req.end_node not in nodes:
-        raise HTTPException(status_code=400, detail="Selected points must exist in mapped KML nodes data layer")
+    """Calculates shortest walking path between two named campus nodes."""
+    with get_db() as conn:
+        nodes = [r['name'] for r in conn.execute("SELECT name FROM nodes").fetchall()]
+        edges = conn.execute("SELECT node_from, node_to, distance_meters FROM edges").fetchall()
         
-    graph = {node: {} for node in nodes}
-    for edge in edges:
-        u, v, w = edge['node_from'], edge['node_to'], edge['distance_meters']
-        if u in graph and v in graph:
-            graph[u][v] = w
-            graph[v][u] = w 
+        if req.start_node not in nodes or req.end_node not in nodes:
+            raise HTTPException(status_code=400, detail="Selected points must exist in mapped data")
             
-    queue = {node: float('inf') for node in nodes}
-    queue[req.start_node] = 0
-    previous = {node: None for node in nodes}
-    distances = {node: float('inf') for node in nodes}
-    distances[req.start_node] = 0
-    
-    while queue:
-        current_node = min(queue, key=queue.get)
-        current_dist = queue[current_node]
+        graph = {node: {} for node in nodes}
+        for edge in edges:
+            u, v, w = edge['node_from'], edge['node_to'], edge['distance_meters']
+            if u in graph and v in graph:
+                graph[u][v] = w
+                graph[v][u] = w 
+                
+        queue = {node: float('inf') for node in nodes}
+        queue[req.start_node] = 0
+        previous = {node: None for node in nodes}
+        distances = {node: float('inf') for node in nodes}
+        distances[req.start_node] = 0
         
-        if current_dist == float('inf') or current_node == req.end_node:
-            break
+        while queue:
+            current_node = min(queue, key=queue.get)
+            current_dist = queue[current_node]
             
-        del queue[current_node]
-        
-        for neighbor, weight in graph[current_node].items():
-            alt_path = distances[current_node] + weight
-            if alt_path < distances[neighbor]:
-                distances[neighbor] = alt_path
-                previous[neighbor] = current_node
-                if neighbor in queue:
-                    queue[neighbor] = alt_path
+            if current_dist == float('inf') or current_node == req.end_node:
+                break
+                
+            del queue[current_node]
+            
+            for neighbor, weight in graph[current_node].items():
+                alt_path = distances[current_node] + weight
+                if alt_path < distances[neighbor]:
+                    distances[neighbor] = alt_path
+                    previous[neighbor] = current_node
+                    if neighbor in queue:
+                        queue[neighbor] = alt_path
                     
     if distances[req.end_node] == float('inf'):
         raise HTTPException(status_code=404, detail="No viable walking paths found between locations")

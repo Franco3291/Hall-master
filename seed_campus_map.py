@@ -13,12 +13,13 @@ def seed_map_data():
     cursor.execute('''
         CREATE TABLE nodes (
             name TEXT PRIMARY KEY,
-            lat REAL NOT NULL,
-            lng REAL NOT NULL,
-            floor INTEGER,
+            floor INTEGER DEFAULT 1,
             description TEXT,
-            occupancy_status TEXT,
-            last_verified TEXT
+            lat REAL DEFAULT 0.0,
+            lng REAL DEFAULT 0.0,
+            occupancy_status TEXT DEFAULT 'UNVERIFIED',
+            last_verified TEXT DEFAULT 'Never',
+            image_url TEXT
         )
     ''')
 
@@ -53,9 +54,9 @@ def seed_map_data():
     print("Inserting your updated geographic campus matrix...")
     for name, lat, lng, floor, desc in campus_nodes:
         cursor.execute('''
-            INSERT INTO nodes (name, lat, lng, floor, description, occupancy_status, last_verified)
+            INSERT INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified)
             VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', 'Never')
-        ''', (name, lat, lng, floor, desc))
+        ''', (name, floor, desc, lat, lng))
 
     # 4. PATHWAY GRID LINK NETWORKS (EDGES)
     # These lines connect your specific coordinates together so Dijkstra can trace a path between them

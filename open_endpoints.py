@@ -1,6 +1,6 @@
 import sqlite3, json, urllib.request
 
-BASE = 'http://127.0.0.1:8001'
+BASE = 'http://127.0.0.1:8000'
 
 def db_info():
     conn = sqlite3.connect('campus_navigation.db')

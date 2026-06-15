@@ -10,8 +10,18 @@ except ImportError:
 
 def parse_and_load_pdf(pdf_path):
     if not os.path.exists(pdf_path):
-        print(f"❌ Error: Cannot find the file '{pdf_path}' in this folder.")
-        return
+        current_dir = os.getcwd()
+        print(f"DEBUG: Looking in folder: {current_dir}")
+        all_files = os.listdir(current_dir)
+        pdf_files = [f for f in all_files if f.lower().endswith('.pdf')]
+        
+        if pdf_files:
+            print(f"⚠️ '{pdf_path}' not found, but I found: {pdf_files}")
+            pdf_path = pdf_files[0]
+            print(f"✅ Auto-switching to use: '{pdf_path}'")
+        else:
+            print(f"❌ Error: No PDF files found in {current_dir}. Please ensure your timetable is here.")
+            return
 
     print(f"⏳ Opening {pdf_path} and extracting table grids...")
     conn = sqlite3.connect('campus_navigation.db')
@@ -20,6 +30,7 @@ def parse_and_load_pdf(pdf_path):
     # Ensure the table exists before attempting to clear it
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS timetable (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             course_code TEXT, course_name TEXT, 
             day_of_week TEXT, start_time TEXT, 
             end_time TEXT, venue TEXT
@@ -39,7 +50,9 @@ def parse_and_load_pdf(pdf_path):
             if not table:
                 continue  # Skip pages without clear structural tables
                 
-            print(f"📋 Processing matrix grids on Page {page_num}...")
+            # Debug: Print the first row of each page to verify column layout
+            print(f"📋 Page {page_num} detected columns: {table[0]}")
+            print(f"⏳ Processing rows...")
             
             # Loop through rows (skipping the first row if it's just headers like Day/Time)
             for row in table[1:]:

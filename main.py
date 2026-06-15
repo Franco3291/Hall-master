@@ -92,15 +92,33 @@ def health_check():
 @app.get("/rooms/status")
 def get_room_status():
     with get_db() as conn:
-        timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
-        
         current_day = datetime.now().strftime('%A')
         current_time = datetime.now().strftime('%H:%M')
         
+        # Get ALL rooms: from timetable venues AND from named nodes that look like rooms
+        timetable_venues = set()
+        for row in conn.execute("SELECT DISTINCT venue FROM timetable WHERE venue IS NOT NULL AND venue != ''").fetchall():
+            timetable_venues.add(row['venue'])
+        
+        # Also get rooms from nodes that look like venue names (not abstract map points like "BS/2")
+        node_rooms = set()
+        campus_nodes_mark = set()  # Nodes that are more like map landmarks, not rooms
+        for row in conn.execute("SELECT name FROM nodes WHERE name IS NOT NULL AND name != ''").fetchall():
+            name = row['name']
+            # Buildings/rooms typically have keywords or are shared with timetable venues
+            if name in timetable_venues:
+                node_rooms.add(name)
+            elif any(kw in name.lower() for kw in ['hall', 'lab', 'room', 'lecture', 'class', 'office', 'block', 'theatre']):
+                node_rooms.add(name)
+            else:
+                campus_nodes_mark.add(name)
+        
+        # Combine all: timetable venues get priority, then node rooms, then remaining campus nodes
+        all_venue_names = list(timetable_venues | node_rooms)
+        
         rooms_status_feed = []
         
-        for row in timetable_venues:
-            venue_name = row['venue']
+        for venue_name in all_venue_names:
             if not venue_name:
                 continue
                 
@@ -358,82 +376,236 @@ def navigate(req: NavigationRequest):
 # 📋 ENDPOINT 8: ADMIN TIMETABLE MANAGEMENT (Upload / View / Edit / Delete)
 # ============================================================
 
-# --- 8a: Upload PDF timetable ---
+# --- 8a: Upload PDF timetable (handles COMPLEX UNIVERSITY GRID format) ---
 @app.post("/admin/timetable/upload-pdf")
 async def upload_timetable_pdf(admin_password: str = Form(...), file: UploadFile = File(...)):
-    """Admin-only: Upload a PDF timetable, parse it, replace all timetable data."""
+    """Upload any .pdf timetable. Handles complex university weekly grid timetables."""
     if admin_password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Invalid admin password.")
     
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
     
-    # Save uploaded PDF
     pdf_path = os.path.join(UPLOAD_DIR, "uploaded_timetable.pdf")
     with open(pdf_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
     
-    # Parse PDF using pdfplumber
     try:
         import pdfplumber
     except ImportError:
         raise HTTPException(status_code=500, detail="pdfplumber library is not installed.")
     
     parsed_classes = []
+    VALID_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    
+    # Define time slots based on row index (common university grid pattern)
+    TIME_SLOTS_BY_ROW = [
+        "",            # row 0 = header
+        "08:00-10:00", # row 1
+        "10:00-12:00", # row 2
+        "12:00-14:00", # row 3
+        "14:00-16:00", # row 4
+        "16:00-18:00", # row 5
+        "18:00-20:00", # row 6
+        "08:00-10:00", # row 7 (fallback for additional rows)
+        "10:00-12:00", # row 8
+        "12:00-14:00", # row 9
+    ]
     
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
+            for page_num, page in enumerate(pdf.pages, 1):
                 table = page.extract_table()
-                if not table:
+                if not table or len(table) < 2:
                     continue
                 
-                # Try to detect header row - skip if it's a header
-                for row_idx, row in enumerate(table):
-                    if not row or len(row) < 5:
+                num_cols = len(table[0]) if table[0] else 0
+                print(f"📋 Page {page_num}: {len(table)} rows x {num_cols} columns")
+                
+                # ============================================================
+                # STEP 1: Detect day columns from the header row
+                # The header has day names (Monday, Tuesday, etc.) at specific columns
+                # ============================================================
+                header = table[0]
+                
+                # Find where each day starts in the header
+                day_boundaries = {}  # day_name -> list of column indices
+                current_day = None
+                
+                for col_idx, cell in enumerate(header):
+                    cell_text = cell.strip() if cell else ""
+                    cell_lower = cell_text.lower()
+                    
+                    if cell_lower in VALID_DAYS:
+                        current_day = cell_text.capitalize()
+                        if current_day not in day_boundaries:
+                            day_boundaries[current_day] = []
+                        day_boundaries[current_day].append(col_idx)
+                    elif current_day is not None and cell_text:
+                        # Sub-column under current day
+                        day_boundaries[current_day].append(col_idx)
+                
+                print(f"   Detected days: {list(day_boundaries.keys())}")
+                
+                if not day_boundaries:
+                    # No day names found in header - this is a program/year page
+                    # Skip pages that don't have day headers
+                    print(f"   ⏭️ Skipping page {page_num} (no day headers)")
+                    continue
+                
+                # ============================================================
+                # STEP 2: Parse each data row (cells may contain newline-separated content)
+                # Cell format example: "CDEV\n00104\nBS 1" or "DIBM\n0224\nTC 7"
+                # Means: course_code=CDEV, course_num=00104, venue=BS 1
+                # ============================================================
+                rows_this_page = 0
+                
+                for row_idx in range(1, len(table)):
+                    row = table[row_idx]
+                    if not row:
                         continue
                     
-                    # Skip header rows (containing words like "Day", "Time", "Course")
-                    first_cell = str(row[0]).strip().lower() if row[0] else ""
-                    if first_cell in ("day", "time", "day/time", "code", "course code", "subject"):
+                    # Get time from row position
+                    time_label = TIME_SLOTS_BY_ROW[row_idx] if row_idx < len(TIME_SLOTS_BY_ROW) else f"{8 + (row_idx-1)*2:02d}:00-{10 + (row_idx-1)*2:02d}:00"
+                    
+                    # Check if first column has text (could be program name or time)
+                    first_col = row[0].strip() if row[0] else ""
+                    
+                    # Skip empty rows
+                    has_any_data = False
+                    for day_name, col_indices in day_boundaries.items():
+                        for ci in col_indices:
+                            if ci < len(row) and row[ci] and row[ci].strip():
+                                has_any_data = True
+                                break
+                        if has_any_data:
+                            break
+                    
+                    if not has_any_data:
                         continue
                     
-                    try:
-                        day = str(row[0]).strip() if row[0] else "Monday"
-                        time_slot = str(row[1]).strip() if row[1] else "08:00-11:00"
-                        course_code = str(row[2]).strip() if row[2] else "UNKNOWN"
-                        course_name = str(row[3]).strip() if row[3] else "General Lecture"
-                        venue = str(row[4]).strip() if row[4] else "Main Hall"
-
-                        # Handle various time formats: "08:00-11:00", "08:00 - 11:00", "8:00-11:00"
-                        time_slot_clean = time_slot.replace(" ", "")
-                        if "-" in time_slot_clean and time_slot_clean.count(":") >= 2:
-                            parts = time_slot_clean.split("-")
-                            start_time = parts[0].strip()
-                            end_time = parts[-1].strip()  # Use last part in case of extra dashes
-                            # Pad single-digit hours: "8:00" -> "08:00"
-                            if start_time.count(":") == 1 and len(start_time.split(":")[0]) == 1:
-                                start_time = "0" + start_time
-                            if end_time.count(":") == 1 and len(end_time.split(":")[0]) == 1:
-                                end_time = "0" + end_time
+                    # ============================================================
+                    # STEP 3: For each day column group, extract course codes + venues
+                    # Cells contain newline-separated: "COURSE_CODE\nVENUE"
+                    # ============================================================
+                    for day_name, col_indices in day_boundaries.items():
+                        # Collect all non-empty cell content under this day
+                        day_cells_text = []
+                        for ci in col_indices:
+                            if ci < len(row) and row[ci] and row[ci].strip():
+                                day_cells_text.append(row[ci].strip())
+                        
+                        if not day_cells_text:
+                            continue
+                        
+                        flattened = " ".join(day_cells_text)
+                        
+                        # Split by newlines to get individual items
+                        # Cells often contain: "COURSE\n001\nVENUE" or "COURSE\nVENUE"
+                        items = []
+                        for ct in day_cells_text:
+                            parts = ct.replace("\n", " ").split()
+                            items.extend(parts)
+                        
+                        if not items:
+                            continue
+                        
+                        # Try to extract course code and venue
+                        # Pattern: items might be [code, num, venue] or [code, venue, extra]
+                        # Heuristic: find the venue keyword (building/room identifiers)
+                        course_code = ""
+                        venue = ""
+                        
+                        venue_keywords = ["hall", "lab", "room", "stb", "tc", "ed", "bs", "utc", "phil", "econ", "bs/", "main"]
+                        
+                        # Reconstruct from items - look for venue patterns
+                        # Items like: ["CDEV", "00104", "BS", "1"] -> code="CDEV 00104", venue="BS 1"
+                        # Items like: ["DIBM", "0224", "TC", "7"] -> code="DIBM 0224", venue="TC 7"
+                        # Items like: ["BITE", "486", "STB", "2"] -> code="BITE 486", venue="STB 2"
+                        
+                        # Find venue position - look for known building codes
+                        venue_start = -1
+                        for i, item in enumerate(items):
+                            item_lower = item.lower()
+                            if item_lower in ["stb", "tc", "ed", "bs", "utc", "phil", "econ", "lab", "hall", "room", "main"]:
+                                venue_start = i
+                                break
+                            # Also check item starts with numbers (like "00104") - not venue
+                            # Check item has building pattern like "STB2" combined
+                            if any(kw in item_lower for kw in venue_keywords):
+                                venue_start = i
+                                break
+                        
+                        if venue_start >= 0:
+                            # Everything before venue is course code/name
+                            code_parts = items[:venue_start]
+                            venue_parts = items[venue_start:]
+                            course_code = " ".join(code_parts)
+                            venue = " ".join(venue_parts)
                         else:
-                            start_time, end_time = "08:00", "11:00"
+                            # No venue keyword found - use last 2 items as venue if they look like building codes
+                            # e.g. ["UTCI", "2210", "TC11"] or ["CISY", "2105"]
+                            if len(items) >= 3:
+                                # Check if last item matches building pattern (letters+numbers or numbers+letters)
+                                last = items[-1]
+                                second_last = items[-2] if len(items) >= 2 else ""
+                                # If last item looks like a room (e.g. "TC11", "BS1", "STB2")
+                                if any(kw in last.lower() for kw in ["tc", "stb", "bs", "utc", "ed"]):
+                                    venue = last
+                                    course_code = " ".join(items[:-1])
+                                elif any(kw in second_last.lower() for kw in ["tc", "stb", "bs", "utc", "ed"]):
+                                    venue = second_last + " " + last
+                                    course_code = " ".join(items[:-2])
+                                else:
+                                    course_code = " ".join(items)
+                                    venue = course_code  # Fallback
+                            elif len(items) == 2:
+                                course_code = items[0]
+                                venue = items[1]
+                            else:
+                                course_code = items[0]
+                                venue = items[0]
+                        
+                        if not course_code:
+                            continue
+                        if not venue:
+                            venue = course_code
+                        
+                        # Parse time from the time label
+                        start_time = "08:00"
+                        end_time = "10:00"
+                        if "-" in time_label:
+                            parts = time_label.split("-")
+                            if len(parts) >= 2:
+                                st, et = parts[0].strip(), parts[-1].strip()
+                                if ":" in st and ":" in et:
+                                    if len(st.split(":")[0]) == 1: st = "0" + st
+                                    if len(et.split(":")[0]) == 1: et = "0" + et
+                                    start_time, end_time = st, et
                         
                         parsed_classes.append({
                             "course_code": course_code,
-                            "course_name": course_name,
-                            "day_of_week": day,
+                            "course_name": course_code,  # Use code as name since names aren't in grid
+                            "day_of_week": day_name,
                             "start_time": start_time,
                             "end_time": end_time,
                             "venue": venue
                         })
-                    except Exception:
-                        continue  # Skip unparseable rows
+                        rows_this_page += 1
+                
+                print(f"   ✅ Page {page_num}: +{rows_this_page} entries (total: {len(parsed_classes)})")
+                
+                # Show first 3 entries from this page
+                start_idx = len(parsed_classes) - rows_this_page
+                for i in range(max(0, start_idx), min(len(parsed_classes), start_idx + 3)):
+                    e = parsed_classes[i]
+                    print(f"      {e['day_of_week']} {e['start_time']}-{e['end_time']}: {e['course_code']} @ {e['venue']}")
+                
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse PDF: {str(e)}")
     
     if not parsed_classes:
-        raise HTTPException(status_code=400, detail="No class data could be extracted from the PDF. Check the table structure.")
+        raise HTTPException(status_code=400, detail="No class data could be extracted. Your PDF may use an unrecognized table format. Check the terminal for detected columns.")
     
     # Replace all timetable data
     with get_db() as conn:

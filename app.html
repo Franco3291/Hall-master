@@ -127,7 +127,13 @@
                 <!-- PDF Upload -->
                 <div class="room-card">
                     <div class="card-top"><span class="room-title">📄 Upload New Timetable (PDF)</span></div>
-                    <p style="font-size:0.8rem; color:var(--text-muted); margin: 6px 0 10px 0;">Upload a PDF timetable to replace all existing data. The PDF must have table columns: Day, Time, Course Code, Course Name, Venue.</p>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin: 6px 0 10px 0;">
+                        <strong>✅ Any PDF filename works!</strong> The system will scan the PDF for tables and auto-detect columns (Day, Time, Course Code, Name, Venue). 
+                        <br><br>
+                        📌 <strong>Requirements:</strong> The PDF must contain a table with rows that include a <strong>day name</strong> (Monday-Saturday) and a <strong>time range</strong> (like "08:00-10:00") in the same row.
+                        <br><br>
+                        🔍 Check the <strong>server terminal</strong> to see detected column headers.
+                    </p>
                     <input type="file" id="pdf-upload-input" accept=".pdf" style="margin-bottom:10px;">
                     <button class="btn-submit" style="background: #10b981;" onclick="uploadTimetablePDF()">Upload & Replace Timetable</button>
                     <div id="pdf-upload-status" style="font-size:0.8rem; margin-top:8px;"></div>

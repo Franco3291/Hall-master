@@ -1,5 +1,7 @@
 import os
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+import re
+import sys
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -22,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Set up storage for uploaded images
+# Set up storage for uploaded images and PDFs
 UPLOAD_DIR = "static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -51,7 +53,7 @@ class StudentRegisterRequest(BaseModel):
     course: str
     year: int
     semester: int
-    units: str # Expecting comma-separated string like "CCS 311,BCS 304"
+    units: str
 
 class StudentLoginRequest(BaseModel):
     reg_no: str
@@ -59,6 +61,14 @@ class StudentLoginRequest(BaseModel):
 
 class AdminLoginRequest(BaseModel):
     admin_password: str
+
+class TimetableEntry(BaseModel):
+    course_code: str
+    course_name: str
+    day_of_week: str
+    start_time: str
+    end_time: str
+    venue: str
 
 @app.get("/health")
 def health_check():
@@ -82,7 +92,6 @@ def health_check():
 @app.get("/rooms/status")
 def get_room_status():
     with get_db() as conn:
-        # Fetch EVERY unique venue directly from your parsed PDF timetable data
         timetable_venues = conn.execute("SELECT DISTINCT venue FROM timetable").fetchall()
         
         current_day = datetime.now().strftime('%A')
@@ -95,7 +104,6 @@ def get_room_status():
             if not venue_name:
                 continue
                 
-            # Check if there is an active class right now for this venue
             active_class = conn.execute('''
                 SELECT course_code, course_name, end_time 
                 FROM timetable 
@@ -103,7 +111,6 @@ def get_room_status():
                 LIMIT 1
             ''', (venue_name, current_day, current_time)).fetchone()
             
-            # Check for crowdsourced override flags in the nodes tracking system
             override = conn.execute(
                 "SELECT occupancy_status, last_verified FROM nodes WHERE name = ?", 
                 (venue_name,)
@@ -117,7 +124,6 @@ def get_room_status():
                 status = "BUSY"
                 schedule_text = f"🔴 Ongoing: {active_class['course_code']} - {active_class['course_name']} (Ends {active_class['end_time']})"
             else:
-                # Look up next upcoming class for this room today
                 next_class = conn.execute('''
                     SELECT course_code, start_time 
                     FROM timetable 
@@ -127,7 +133,6 @@ def get_room_status():
                 if next_class:
                     schedule_text = f"🟢 Inactive: Next class {next_class['course_code']} at {next_class['start_time']}"
             
-            # Apply crowdsourced manual reporting changes if they exist
             if override and override['occupancy_status'] != 'UNVERIFIED':
                 status = override['occupancy_status']
                 schedule_text = f"👥 Room marked as manual {status} via crowd override."
@@ -199,7 +204,7 @@ def login_admin(req: AdminLoginRequest):
     return {"status": "success", "message": "Admin authenticated."}
 
 # ==========================================
-# 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING (FIXED)
+# 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING
 # ==========================================
 @app.get("/students/schedule/{reg_no}")
 def get_student_schedule(reg_no: str):
@@ -347,3 +352,202 @@ def navigate(req: NavigationRequest):
         "total_distance_meters": round(distances[req.end_node], 1),
         "routing_path": path
     }
+
+
+# ============================================================
+# 📋 ENDPOINT 8: ADMIN TIMETABLE MANAGEMENT (Upload / View / Edit / Delete)
+# ============================================================
+
+# --- 8a: Upload PDF timetable ---
+@app.post("/admin/timetable/upload-pdf")
+async def upload_timetable_pdf(admin_password: str = Form(...), file: UploadFile = File(...)):
+    """Admin-only: Upload a PDF timetable, parse it, replace all timetable data."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+    
+    # Save uploaded PDF
+    pdf_path = os.path.join(UPLOAD_DIR, "uploaded_timetable.pdf")
+    with open(pdf_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    
+    # Parse PDF using pdfplumber
+    try:
+        import pdfplumber
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pdfplumber library is not installed.")
+    
+    parsed_classes = []
+    
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                table = page.extract_table()
+                if not table:
+                    continue
+                
+                # Try to detect header row - skip if it's a header
+                for row_idx, row in enumerate(table):
+                    if not row or len(row) < 5:
+                        continue
+                    
+                    # Skip header rows (containing words like "Day", "Time", "Course")
+                    first_cell = str(row[0]).strip().lower() if row[0] else ""
+                    if first_cell in ("day", "time", "day/time", "code", "course code", "subject"):
+                        continue
+                    
+                    try:
+                        day = str(row[0]).strip() if row[0] else "Monday"
+                        time_slot = str(row[1]).strip() if row[1] else "08:00-11:00"
+                        course_code = str(row[2]).strip() if row[2] else "UNKNOWN"
+                        course_name = str(row[3]).strip() if row[3] else "General Lecture"
+                        venue = str(row[4]).strip() if row[4] else "Main Hall"
+
+                        # Handle various time formats: "08:00-11:00", "08:00 - 11:00", "8:00-11:00"
+                        time_slot_clean = time_slot.replace(" ", "")
+                        if "-" in time_slot_clean and time_slot_clean.count(":") >= 2:
+                            parts = time_slot_clean.split("-")
+                            start_time = parts[0].strip()
+                            end_time = parts[-1].strip()  # Use last part in case of extra dashes
+                            # Pad single-digit hours: "8:00" -> "08:00"
+                            if start_time.count(":") == 1 and len(start_time.split(":")[0]) == 1:
+                                start_time = "0" + start_time
+                            if end_time.count(":") == 1 and len(end_time.split(":")[0]) == 1:
+                                end_time = "0" + end_time
+                        else:
+                            start_time, end_time = "08:00", "11:00"
+                        
+                        parsed_classes.append({
+                            "course_code": course_code,
+                            "course_name": course_name,
+                            "day_of_week": day,
+                            "start_time": start_time,
+                            "end_time": end_time,
+                            "venue": venue
+                        })
+                    except Exception:
+                        continue  # Skip unparseable rows
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse PDF: {str(e)}")
+    
+    if not parsed_classes:
+        raise HTTPException(status_code=400, detail="No class data could be extracted from the PDF. Check the table structure.")
+    
+    # Replace all timetable data
+    with get_db() as conn:
+        conn.execute("DELETE FROM timetable")
+        for entry in parsed_classes:
+            conn.execute('''
+                INSERT INTO timetable (course_code, course_name, day_of_week, start_time, end_time, venue)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (entry["course_code"], entry["course_name"], entry["day_of_week"],
+                  entry["start_time"], entry["end_time"], entry["venue"]))
+        conn.commit()
+    
+    return {
+        "status": "success",
+        "message": f"Timetable updated successfully!",
+        "classes_imported": len(parsed_classes)
+    }
+
+
+# --- 8b: Get all timetable entries ---
+@app.get("/admin/timetable/all")
+def get_all_timetable(admin_password: str = Query(...)):
+    """Admin-only: Get all timetable entries."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT id, course_code, course_name, day_of_week, start_time, end_time, venue
+            FROM timetable ORDER BY day_of_week, start_time
+        ''').fetchall()
+        return [dict(row) for row in rows]
+
+
+# --- 8c: Add a timetable entry manually ---
+@app.post("/admin/timetable/add")
+def add_timetable_entry(admin_password: str = Query(...), entry: TimetableEntry = None):
+    """Admin-only: Add a single timetable entry."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        conn.execute('''
+            INSERT INTO timetable (course_code, course_name, day_of_week, start_time, end_time, venue)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (entry.course_code, entry.course_name, entry.day_of_week,
+              entry.start_time, entry.end_time, entry.venue))
+        conn.commit()
+        new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    
+    return {"status": "success", "message": "Entry added successfully!", "id": new_id}
+
+
+# --- 8d: Update a timetable entry ---
+@app.put("/admin/timetable/update/{entry_id}")
+def update_timetable_entry(entry_id: int, admin_password: str = Query(...), entry: TimetableEntry = None):
+    """Admin-only: Update a timetable entry by ID."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM timetable WHERE id = ?", (entry_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Entry not found.")
+        
+        conn.execute('''
+            UPDATE timetable SET course_code=?, course_name=?, day_of_week=?, start_time=?, end_time=?, venue=?
+            WHERE id=?
+        ''', (entry.course_code, entry.course_name, entry.day_of_week,
+              entry.start_time, entry.end_time, entry.venue, entry_id))
+        conn.commit()
+    
+    return {"status": "success", "message": "Entry updated successfully!"}
+
+
+# --- 8e: Delete a timetable entry ---
+@app.delete("/admin/timetable/delete/{entry_id}")
+def delete_timetable_entry(entry_id: int, admin_password: str = Query(...)):
+    """Admin-only: Delete a timetable entry by ID."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM timetable WHERE id = ?", (entry_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Entry not found.")
+        
+        conn.execute("DELETE FROM timetable WHERE id = ?", (entry_id,))
+        conn.commit()
+    
+    return {"status": "success", "message": "Entry deleted successfully!"}
+
+
+# --- 8f: Get all unique venues (for reference) ---
+@app.get("/admin/timetable/venues")
+def get_all_venues(admin_password: str = Query(...)):
+    """Admin-only: Get list of unique venues."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        venues = conn.execute("SELECT DISTINCT venue FROM timetable ORDER BY venue").fetchall()
+        return [v["venue"] for v in venues if v["venue"]]
+
+
+# --- 8g: Clear entire timetable ---
+@app.delete("/admin/timetable/clear")
+def clear_timetable(admin_password: str = Query(...)):
+    """Admin-only: Clear all timetable entries."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    
+    with get_db() as conn:
+        conn.execute("DELETE FROM timetable")
+        conn.commit()
+    
+    return {"status": "success", "message": "All timetable entries cleared!"}

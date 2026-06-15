@@ -120,6 +120,47 @@
                 <div class="section-title">Admin Room Override Control</div>
                 <div id="admin-status-container"></div>
                 <button class="btn-submit" style="background: #ef4444;" onclick="releaseAllOverrides()">Reset All Room Overrides</button>
+                
+                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
+                <div class="section-title">📋 Timetable Management</div>
+                
+                <!-- PDF Upload -->
+                <div class="room-card">
+                    <div class="card-top"><span class="room-title">📄 Upload New Timetable (PDF)</span></div>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin: 6px 0 10px 0;">Upload a PDF timetable to replace all existing data. The PDF must have table columns: Day, Time, Course Code, Course Name, Venue.</p>
+                    <input type="file" id="pdf-upload-input" accept=".pdf" style="margin-bottom:10px;">
+                    <button class="btn-submit" style="background: #10b981;" onclick="uploadTimetablePDF()">Upload & Replace Timetable</button>
+                    <div id="pdf-upload-status" style="font-size:0.8rem; margin-top:8px;"></div>
+                </div>
+                
+                <!-- View & Manage Timetable -->
+                <div style="display:flex; gap:8px; margin-bottom:10px;">
+                    <button class="btn-submit" style="flex:1; background: #0284c7;" onclick="fetchTimetableEntries()">📋 View Timetable</button>
+                    <button class="btn-submit" style="flex:1; background: #ef4444;" onclick="clearAllTimetable()">🗑️ Clear All</button>
+                </div>
+                
+                <!-- Add Entry Form -->
+                <div class="room-card" id="add-entry-form" style="display:none;">
+                    <div class="card-top"><span class="room-title">➕ Add New Entry</span></div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <select id="entry-day" style="flex:1; min-width:100px;">
+                            <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+                            <option>Thursday</option><option>Friday</option><option>Saturday</option>
+                        </select>
+                        <input type="text" id="entry-code" class="form-control" placeholder="Course Code" style="flex:1; min-width:80px;">
+                        <input type="text" id="entry-name" class="form-control" placeholder="Course Name" style="flex:1; min-width:100px;">
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                        <input type="text" id="entry-start" class="form-control" placeholder="Start (e.g. 08:00)" style="flex:1; min-width:80px;">
+                        <input type="text" id="entry-end" class="form-control" placeholder="End (e.g. 10:00)" style="flex:1; min-width:80px;">
+                        <input type="text" id="entry-venue" class="form-control" placeholder="Venue" style="flex:2; min-width:100px;">
+                    </div>
+                    <button class="btn-submit" onclick="addTimetableEntry()">Add Entry</button>
+                </div>
+                
+                <button class="btn-submit" style="background:#6366f1; margin-bottom:10px;" onclick="toggleAddEntryForm()">➕ Toggle Add Entry Form</button>
+                
+                <div id="timetable-entries-container"></div>
             </div>
 
             <div id="panel-register" class="view-panel">
@@ -825,6 +866,213 @@
                     </div>
                 `;
             });
+        }
+
+        // ==========================================
+        // 📋 ADMIN TIMETABLE MANAGEMENT FUNCTIONS
+        // ==========================================
+        function getAdminPassword() {
+            return document.getElementById('admin_password').value || prompt('Enter admin password:');
+        }
+
+        async function uploadTimetablePDF() {
+            if (loggedInUserType !== 'admin') {
+                alert('Admin login required.');
+                return;
+            }
+            const fileInput = document.getElementById('pdf-upload-input');
+            const statusDiv = document.getElementById('pdf-upload-status');
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                alert('Please select a PDF file first.');
+                return;
+            }
+            
+            const adminPwd = document.getElementById('admin_password').value;
+            if (!adminPwd) {
+                alert('Please enter the admin password in the account portal first.');
+                return;
+            }
+            
+            statusDiv.innerHTML = '<span style="color:#0284c7;">⏳ Uploading and parsing PDF...</span>';
+            
+            const formData = new FormData();
+            formData.append('admin_password', adminPwd);
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/timetable/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    statusDiv.innerHTML = `<span style="color:#10b981;">✅ ${data.message} (${data.classes_imported} classes imported)</span>`;
+                    fetchTimetableEntries();
+                    fetchRoomStatus();
+                } else {
+                    statusDiv.innerHTML = `<span style="color:#ef4444;">❌ Error: ${data.detail || 'Upload failed'}</span>`;
+                }
+            } catch (err) {
+                statusDiv.innerHTML = `<span style="color:#ef4444;">❌ Connection error: ${err.message}</span>`;
+            }
+        }
+
+        function toggleAddEntryForm() {
+            const form = document.getElementById('add-entry-form');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function addTimetableEntry() {
+            if (loggedInUserType !== 'admin') {
+                alert('Admin login required.');
+                return;
+            }
+            const adminPwd = document.getElementById('admin_password').value;
+            if (!adminPwd) { alert('Enter admin password in account portal.'); return; }
+            
+            const entry = {
+                course_code: document.getElementById('entry-code').value.trim(),
+                course_name: document.getElementById('entry-name').value.trim(),
+                day_of_week: document.getElementById('entry-day').value,
+                start_time: document.getElementById('entry-start').value.trim(),
+                end_time: document.getElementById('entry-end').value.trim(),
+                venue: document.getElementById('entry-venue').value.trim()
+            };
+            
+            if (!entry.course_code || !entry.start_time || !entry.end_time || !entry.venue) {
+                alert('Please fill in at least: Course Code, Start, End, Venue.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/timetable/add?admin_password=${encodeURIComponent(adminPwd)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(entry)
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Entry added successfully!');
+                    document.getElementById('entry-code').value = '';
+                    document.getElementById('entry-name').value = '';
+                    document.getElementById('entry-start').value = '';
+                    document.getElementById('entry-end').value = '';
+                    document.getElementById('entry-venue').value = '';
+                    fetchTimetableEntries();
+                    fetchRoomStatus();
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to add entry.'));
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+            }
+        }
+
+        async function fetchTimetableEntries() {
+            if (loggedInUserType !== 'admin') {
+                alert('Admin login required.');
+                return;
+            }
+            const container = document.getElementById('timetable-entries-container');
+            const adminPwd = document.getElementById('admin_password').value;
+            if (!adminPwd) { container.innerHTML = '<p style="color:var(--busy-red); font-size:0.85rem;">Please enter admin password in account portal first.</p>'; return; }
+            
+            container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem;">Loading timetable...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/timetable/all?admin_password=${encodeURIComponent(adminPwd)}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    container.innerHTML = `<p style="color:var(--busy-red);">${data.detail || 'Failed to load'}</p>`;
+                    return;
+                }
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p style="color:var(--text-muted); font-size:0.85rem; padding:10px;">📭 No timetable entries found. Upload a PDF or add entries manually.</p>';
+                    return;
+                }
+                
+                // Group by day of week
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                let html = `<p style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">Total: ${data.length} entries</p>`;
+                
+                days.forEach(day => {
+                    const dayEntries = data.filter(e => e.day_of_week === day);
+                    if (dayEntries.length === 0) return;
+                    
+                    html += `<div style="background:#f8fafc; border-radius:12px; padding:10px; margin-bottom:10px; border:1px solid #e2e8f0;">
+                        <p style="font-weight:700; font-size:0.85rem; color:var(--accent-blue); margin-bottom:6px;">${day} (${dayEntries.length})</p>`;
+                    
+                    dayEntries.forEach(entry => {
+                        html += `
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px dashed #e2e8f0; font-size:0.8rem;">
+                                <div style="flex:1;">
+                                    <strong>${entry.course_code}</strong> ${entry.course_name ? '- ' + entry.course_name : ''}
+                                    <br><span style="color:var(--text-muted);">${entry.start_time} - ${entry.end_time} | ${entry.venue}</span>
+                                </div>
+                                <button onclick="deleteTimetableEntry(${entry.id})" style="background:none; border:none; color:var(--busy-red); cursor:pointer; font-size:1.2rem; padding:4px;" title="Delete">&times;</button>
+                            </div>`;
+                    });
+                    
+                    html += `</div>`;
+                });
+                
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<p style="color:var(--busy-red);">Error: ${err.message}</p>`;
+            }
+        }
+
+        async function deleteTimetableEntry(entryId) {
+            if (loggedInUserType !== 'admin') {
+                alert('Admin login required.');
+                return;
+            }
+            if (!confirm('Delete this timetable entry?')) return;
+            
+            const adminPwd = document.getElementById('admin_password').value;
+            try {
+                const response = await fetch(`${API_URL}/admin/timetable/delete/${entryId}?admin_password=${encodeURIComponent(adminPwd)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    fetchTimetableEntries();
+                    fetchRoomStatus();
+                } else {
+                    alert('Error: ' + (data.detail || 'Delete failed'));
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+            }
+        }
+
+        async function clearAllTimetable() {
+            if (loggedInUserType !== 'admin') {
+                alert('Admin login required.');
+                return;
+            }
+            if (!confirm('⚠️ This will DELETE ALL timetable entries! Are you sure?')) return;
+            if (!confirm('Final confirmation: Clear the entire timetable?')) return;
+            
+            const adminPwd = document.getElementById('admin_password').value;
+            try {
+                const response = await fetch(`${API_URL}/admin/timetable/clear?admin_password=${encodeURIComponent(adminPwd)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert('All timetable entries cleared!');
+                    document.getElementById('timetable-entries-container').innerHTML = '';
+                    fetchRoomStatus();
+                } else {
+                    alert('Error: ' + (data.detail || 'Clear failed'));
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+            }
         }
 
         window.onload = () => { 

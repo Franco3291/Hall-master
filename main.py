@@ -318,25 +318,28 @@ def reset_rooms():
 # ==========================================
 @app.post("/navigate")
 def navigate(req: NavigationRequest):
-    """Calculates shortest walking path between two named campus nodes."""
+    """Calculates shortest walking path and returns coordinates for map drawing."""
     with get_db() as conn:
-        nodes = [r['name'] for r in conn.execute("SELECT name FROM nodes").fetchall()]
+        # Get all nodes with coordinates
+        nodes_data = {r['name']: {"lat": r['lat'], "lng": r['lng']} 
+                      for r in conn.execute("SELECT name, lat, lng FROM nodes").fetchall()}
+        nodes_list = list(nodes_data.keys())
         edges = conn.execute("SELECT node_from, node_to, distance_meters FROM edges").fetchall()
         
-        if req.start_node not in nodes or req.end_node not in nodes:
+        if req.start_node not in nodes_data or req.end_node not in nodes_data:
             raise HTTPException(status_code=400, detail="Selected points must exist in mapped data")
             
-        graph = {node: {} for node in nodes}
+        graph = {node: {} for node in nodes_list}
         for edge in edges:
             u, v, w = edge['node_from'], edge['node_to'], edge['distance_meters']
             if u in graph and v in graph:
                 graph[u][v] = w
                 graph[v][u] = w 
                 
-        queue = {node: float('inf') for node in nodes}
+        queue = {node: float('inf') for node in nodes_list}
         queue[req.start_node] = 0
-        previous = {node: None for node in nodes}
-        distances = {node: float('inf') for node in nodes}
+        previous = {node: None for node in nodes_list}
+        distances = {node: float('inf') for node in nodes_list}
         distances[req.start_node] = 0
         
         while queue:
@@ -366,9 +369,32 @@ def navigate(req: NavigationRequest):
         curr = previous[curr]
     path.reverse()
     
+    # Generate coordinates for the path (for map drawing)
+    coordinates = []
+    for node_name in path:
+        node = nodes_data.get(node_name)
+        if node and node['lat'] and node['lng']:
+            coordinates.append([node['lat'], node['lng']])
+    
+    # Also generate weighted coordinates for a smoother line (interpolate between edges)
+    detailed_coords = []
+    for i, node_name in enumerate(path):
+        node = nodes_data.get(node_name)
+        if node and node['lat'] and node['lng']:
+            detailed_coords.append([node['lat'], node['lng']])
+            # If there's an edge between this node and the next, add a midpoint for smoother line
+            if i < len(path) - 1:
+                next_node = nodes_data.get(path[i+1])
+                if next_node and next_node['lat'] and next_node['lng']:
+                    # Add midpoint
+                    mid_lat = (node['lat'] + next_node['lat']) / 2
+                    mid_lng = (node['lng'] + next_node['lng']) / 2
+                    detailed_coords.append([mid_lat, mid_lng])
+    
     return {
         "total_distance_meters": round(distances[req.end_node], 1),
-        "routing_path": path
+        "routing_path": path,
+        "coordinates": detailed_coords if len(detailed_coords) >= 2 else coordinates
     }
 
 

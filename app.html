@@ -276,10 +276,11 @@
         function initTharakaMap() {
             if (map) return;
             
+            // Center between the two campus clusters (Tharaka ~ -0.092, 37.99 and Main Campus ~ -1.045, 37.01)
             map = L.map('map', {
-                maxBounds: [[-0.1050, 37.9700], [-0.0800, 38.0100]],
-                maxZoom: 19, minZoom: 14
-            }).setView([-0.092969, 37.989887], 16); 
+                maxBounds: [[-1.1000, 36.9000], [0.0000, 38.1000]],
+                maxZoom: 19, minZoom: 10
+            }).setView([-0.568, 37.500], 11); 
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             

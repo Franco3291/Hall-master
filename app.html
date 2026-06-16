@@ -213,16 +213,32 @@
                     <div style="display:flex; gap:10px;">
                         <div class="form-group" style="flex:1;">
                             <label>Year of Study</label>
-                            <input type="number" id="year" class="form-control" placeholder="2">
+                            <select id="year" class="form-control" onchange="fetchAvailableUnits()">
+                                <option value="">-- Select Year --</option>
+                                <option value="1">Year 1</option>
+                                <option value="2">Year 2</option>
+                                <option value="3">Year 3</option>
+                                <option value="4">Year 4</option>
+                            </select>
                         </div>
                         <div class="form-group" style="flex:1;">
                             <label>Semester</label>
-                            <input type="number" id="semester" class="form-control" placeholder="1">
+                            <select id="semester" class="form-control" onchange="fetchAvailableUnits()">
+                                <option value="">-- Select --</option>
+                                <option value="1">Semester 1</option>
+                                <option value="2">Semester 2</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Enrolled Unit Codes (Comma Separated)</label>
-                        <input type="text" id="units" class="form-control" placeholder="e.g., COSC 104, DIA C011">
+                        <label>📚 Select Your Enrolled Units</label>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">Select your year & semester above, then pick units from the timetable below.</p>
+                        <div id="units-loading" style="font-size:0.8rem; color:var(--text-muted); display:none;">Loading available units...</div>
+                        <div id="units-container" style="max-height:180px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#f8fafc;">
+                            <p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p>
+                        </div>
+                        <input type="hidden" id="units" value="">
+                        <div id="selected-units-display" style="font-size:0.8rem; margin-top:6px; color:var(--accent-blue);"></div>
                     </div>
                     <button class="btn-submit" onclick="submitRegistration()">Complete Registration</button>
                 </div>
@@ -475,14 +491,83 @@
             document.getElementById('modal-overlay').style.display = show ? 'block' : 'none';
         }
 
+        // ==========================================
+        // 📚 SMART UNIT SELECTION FROM TIMETABLE
+        // ==========================================
+        let selectedUnits = [];
+
+        async function fetchAvailableUnits() {
+            const year = document.getElementById('year').value;
+            const semester = document.getElementById('semester').value;
+            const container = document.getElementById('units-container');
+            const loading = document.getElementById('units-loading');
+            
+            if (!year) {
+                container.innerHTML = '<p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p>';
+                return;
+            }
+            
+            loading.style.display = 'block';
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${API_URL}/students/available-units?year=${year}&semester=${semester || 0}`);
+                const data = await response.json();
+                loading.style.display = 'none';
+                
+                if (data.units && data.units.length > 0) {
+                    let html = '';
+                    data.units.forEach(u => {
+                        const checked = selectedUnits.includes(u.code) ? 'checked' : '';
+                        html += `
+                            <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid #e2e8f0; font-size:0.85rem; cursor:pointer;">
+                                <input type="checkbox" value="${u.code.replace(/"/g, '"')}" onchange="toggleUnit('${u.code.replace(/'/g, "\\'")}')" ${checked}>
+                                <span><strong>${u.code}</strong>${u.name ? ' - ' + u.name : ''}</span>
+                            </label>`;
+                    });
+                    container.innerHTML = html;
+                    updateSelectedDisplay();
+                } else {
+                    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center;">No units found for this year/semester. Try another selection.</p>';
+                }
+            } catch (err) {
+                loading.style.display = 'none';
+                container.innerHTML = '<p style="font-size:0.8rem; color:var(--busy-red);">Error loading units.</p>';
+            }
+        }
+
+        function toggleUnit(code) {
+            const idx = selectedUnits.indexOf(code);
+            if (idx >= 0) {
+                selectedUnits.splice(idx, 1);
+            } else {
+                selectedUnits.push(code);
+            }
+            updateSelectedDisplay();
+        }
+
+        function updateSelectedDisplay() {
+            document.getElementById('units').value = selectedUnits.join(',');
+            const display = document.getElementById('selected-units-display');
+            if (selectedUnits.length === 0) {
+                display.innerHTML = '';
+            } else {
+                display.innerHTML = `✅ Selected: <strong>${selectedUnits.join(', ')}</strong>`;
+            }
+        }
+
         async function submitRegistration() {
+            // Collect selected units from checkboxes
+            const checkedBoxes = document.querySelectorAll('#units-container input[type="checkbox"]:checked');
+            const unitsList = Array.from(checkedBoxes).map(cb => cb.value).join(',');
+            
             const payload = {
                 reg_no: document.getElementById('reg_no').value.trim(),
                 password: document.getElementById('password').value,
                 course: document.getElementById('course').value,
                 year: parseInt(document.getElementById('year').value) || 1,
                 semester: parseInt(document.getElementById('semester').value) || 1,
-                units: document.getElementById('units').value
+                units: unitsList || document.getElementById('units').value
             };
             try {
                 const response = await fetch(`${API_URL}/students/register`, {

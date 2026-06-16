@@ -224,7 +224,7 @@ def login_admin(req: AdminLoginRequest):
 # ==========================================
 # 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING
 # ==========================================
-@app.get("/students/schedule/{reg_no}")
+@app.get("/students/schedule/{reg_no:path}")
 def get_student_schedule(reg_no: str):
     with get_db() as conn:
         student = conn.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
@@ -749,3 +749,77 @@ def clear_timetable(admin_password: str = Query(...)):
         conn.commit()
     
     return {"status": "success", "message": "All timetable entries cleared!"}
+
+
+# ============================================================
+# 📌 ENDPOINT 9: ADMIN NODE (CAMPUS MAP) MANAGEMENT
+# ============================================================
+
+# --- 9a: Get all nodes ---
+@app.get("/admin/nodes/all")
+def get_all_nodes(admin_password: str = Query(...)):
+    """Admin-only: Get all campus nodes with coordinates."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        rows = conn.execute("SELECT name, lat, lng, floor, description, occupancy_status FROM nodes ORDER BY name").fetchall()
+        return [dict(row) for row in rows]
+
+
+# --- 9b: Add a node ---
+class NodeAddRequest(BaseModel):
+    name: str
+    lat: float
+    lng: float
+    floor: int = 1
+    description: str = ""
+
+@app.post("/admin/nodes/add")
+def add_node(admin_password: str = Query(...), node: NodeAddRequest = None):
+    """Admin-only: Add a new campus node with GPS coordinates."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    if not node.name or not node.name.strip():
+        raise HTTPException(status_code=400, detail="Node name is required.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node.name.strip(),)).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Node '{node.name}' already exists.")
+        conn.execute('''INSERT INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified)
+            VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', 'Never')''',
+            (node.name.strip(), node.floor, node.description, node.lat, node.lng))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node.name}' added!"}
+
+
+# --- 9c: Delete a node ---
+@app.delete("/admin/nodes/delete/{node_name}")
+def delete_node(node_name: str, admin_password: str = Query(...)):
+    """Admin-only: Delete a campus node by name."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        # Delete associated edges first
+        conn.execute("DELETE FROM edges WHERE node_from = ? OR node_to = ?", (node_name, node_name))
+        conn.execute("DELETE FROM nodes WHERE name = ?", (node_name,))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node_name}' deleted!"}
+
+
+# --- 9d: Update node coordinates ---
+@app.put("/admin/nodes/update/{node_name}")
+def update_node(node_name: str, admin_password: str = Query(...), node: NodeAddRequest = None):
+    """Admin-only: Update a node's coordinates and info."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        conn.execute("UPDATE nodes SET lat=?, lng=?, floor=?, description=? WHERE name=?",
+            (node.lat, node.lng, node.floor, node.description, node_name))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node_name}' updated!"}

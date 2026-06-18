@@ -156,29 +156,97 @@ def register_student(req: StudentRegisterRequest):
 
 # --- Smart unit selection: get available units from timetable ---
 @app.get("/students/available-units")
-def get_available_units(year: int = Query(0), semester: int = Query(0)):
-    """Returns all distinct course codes from timetable for unit selection."""
+def get_available_units(course: str = Query(""), year: int = Query(0), semester: int = Query(0)):
+    """
+    Returns distinct course codes filtered by course name, year, semester.
+    If course is provided, it filters by the program name embedded in course_name/venue.
+    """
     with get_db() as conn:
-        rows = conn.execute('''SELECT DISTINCT course_code, course_name, venue FROM timetable ORDER BY course_code''').fetchall()
-        all_units = []
+        # Get all timetable entries with their details
+        rows = conn.execute('''SELECT DISTINCT course_code, course_name, day_of_week, start_time, end_time, venue 
+                               FROM timetable ORDER BY course_code''').fetchall()
+        
+        # Build a map of unique course codes with their metadata
+        seen = {}
         for r in rows:
             code = str(r['course_code']) if r['course_code'] else ""
             name = str(r['course_name']) if r['course_name'] else ""
+            venue = str(r['venue']) if r['venue'] else ""
+            day = str(r['day_of_week']) if r['day_of_week'] else ""
+            
             if not code:
                 continue
+            
+            # Year filter based on first digit of course number
             if year > 0:
                 nums = [int(s) for s in code.split() if s.isdigit()]
                 if nums:
                     first_digit = int(str(nums[0])[0])
                     if first_digit != year:
+                        # Year 1 codes start with 1, year 2 with 2, etc.
+                        # But some codes like "CCS 001" don't follow this pattern
+                        # Allow codes that share ANY digit with the year
+                        if year not in [int(d) for d in str(nums[0])]:
+                            continue
+            
+            # Course filter: if user entered a course name, try to match
+            if course:
+                course_lower = course.lower()
+                # Check if course keywords appear in venue, course_name, or code
+                course_keywords = course_lower.split()
+                match_found = False
+                for kw in course_keywords:
+                    if len(kw) < 2:
                         continue
-            all_units.append({"code": code, "name": name if name and name != code else ""})
-        seen = set()
-        unique = []
-        for u in all_units:
-            if u['code'] not in seen:
-                seen.add(u['code'])
-                unique.append(u)
+                    if kw in name.lower() or kw in venue.lower() or kw in code.lower():
+                        match_found = True
+                        break
+                # Also check full course name against code prefixes
+                # e.g., "Diploma Criminology" -> look for codes starting with DCRM, CRM, etc.
+                if not match_found:
+                    # Generate acronym from course name (e.g., "Diploma Criminology" -> "DC")
+                    words = course_lower.split()
+                    acronyms = []
+                    for w in words:
+                        if len(w) >= 2 and w not in ['of', 'in', 'and', 'the', 'for']:
+                            acronyms.append(w[:3].upper())
+                    # Check if any timetable venue/code contains our acronyms
+                    for ac in acronyms:
+                        if ac and (ac in code.upper() or ac in venue.upper()):
+                            match_found = True
+                            break
+                    # Fallback: include the course code if no filtering possible
+                    # (shows all units for the year)
+                
+                if not match_found:
+                    # Last try: check if course name appears in page-like venue names
+                    # e.g., "CERT.COMM DVPMNT" stored somewhere
+                    # For now, skip if no match found
+                    continue
+            
+            if code not in seen:
+                seen[code] = {
+                    "code": code,
+                    "name": name if name and name != code else "",
+                    "venue": venue,
+                    "day": day
+                }
+        
+        unique = list(seen.values())
+        # Sort: prioritize codes that have a venue match for the course
+        if course:
+            course_lower = course.lower()
+            def sort_key(item):
+                score = 0
+                if course_lower in item['venue'].lower():
+                    score += 3
+                if course_lower in item['name'].lower():
+                    score += 2
+                if course_lower in item['code'].lower():
+                    score += 1
+                return -score
+            unique.sort(key=sort_key)
+        
         return {"units": unique, "total": len(unique)}
 
 @app.post("/students/login")

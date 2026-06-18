@@ -497,6 +497,7 @@
         let selectedUnits = [];
 
         async function fetchAvailableUnits() {
+            const course = document.getElementById('course').value.trim();
             const year = document.getElementById('year').value;
             const semester = document.getElementById('semester').value;
             const container = document.getElementById('units-container');
@@ -510,8 +511,13 @@
             loading.style.display = 'block';
             container.innerHTML = '';
             
+            // Build URL with course, year, semester params
+            let url = `${API_URL}/students/available-units?year=${year}`;
+            if (semester) url += `&semester=${semester}`;
+            if (course) url += `&course=${encodeURIComponent(course)}`;
+            
             try {
-                const response = await fetch(`${API_URL}/students/available-units?year=${year}&semester=${semester || 0}`);
+                const response = await fetch(url);
                 const data = await response.json();
                 loading.style.display = 'none';
                 

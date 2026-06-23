@@ -65,8 +65,11 @@
 
     <div class="phone-wrapper">
         <header>
-            <h1>Smart Campus Matrix</h1>
-            <p id="session-indicator"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 6px;">
+                <img id="app-logo" src="" alt="Smart Campus Matrix Logo" style="height: 40px; width: auto; object-fit: contain;" />
+                <h1 style="font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px;">Smart Campus Matrix</h1>
+            </div>
+            <p id="session-indicator" style="font-size: 0.75rem; opacity: 0.7;"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
             <div style="display:flex; justify-content:center; margin-top:10px;">
                 <button onclick="toggleAccountMenu(true)" style="padding: 8px 14px; border:none; border-radius:999px; background:#0284c7; color:white; font-weight:700; cursor:pointer;">Open Account Portal</button>
             </div>
@@ -167,32 +170,6 @@
                 <button class="btn-submit" style="background:#6366f1; margin-bottom:10px;" onclick="toggleAddEntryForm()">➕ Toggle Add Entry Form</button>
                 
                 <div id="timetable-entries-container"></div>
-                
-                <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
-                <div class="section-title">🗺️ Campus Node Manager</div>
-                
-                <!-- Add Node Form -->
-                <div class="room-card">
-                    <div class="card-top"><span class="room-title">➕ Add New Campus Node</span></div>
-                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">Add a new location with GPS coordinates. It will appear on the map automatically.</p>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <input type="text" id="node-name" class="form-control" placeholder="Name (e.g. New Lab)" style="flex:2; min-width:120px;">
-                        <input type="text" id="node-floor" class="form-control" placeholder="Floor" value="1" style="flex:1; min-width:60px;">
-                    </div>
-                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-                        <input type="text" id="node-lat" class="form-control" placeholder="Latitude (e.g. -0.0925)" style="flex:1;">
-                        <input type="text" id="node-lng" class="form-control" placeholder="Longitude (e.g. 37.9907)" style="flex:1;">
-                    </div>
-                    <input type="text" id="node-desc" class="form-control" placeholder="Description (optional)" style="margin-top:8px;">
-                    <button class="btn-submit" style="background: #10b981;" onclick="addCampusNode()">Add Node to Map</button>
-                    <div id="node-add-status" style="font-size:0.8rem; margin-top:6px;"></div>
-                </div>
-                
-                <!-- View & Delete Nodes -->
-                <div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <button class="btn-submit" style="flex:1; background: #0284c7;" onclick="fetchAllNodes()">📋 View All Nodes</button>
-                </div>
-                <div id="nodes-list-container"></div>
             </div>
 
             <div id="panel-register" class="view-panel">
@@ -213,32 +190,16 @@
                     <div style="display:flex; gap:10px;">
                         <div class="form-group" style="flex:1;">
                             <label>Year of Study</label>
-                            <select id="year" class="form-control" onchange="fetchAvailableUnits()">
-                                <option value="">-- Select Year --</option>
-                                <option value="1">Year 1</option>
-                                <option value="2">Year 2</option>
-                                <option value="3">Year 3</option>
-                                <option value="4">Year 4</option>
-                            </select>
+                            <input type="number" id="year" class="form-control" placeholder="2">
                         </div>
                         <div class="form-group" style="flex:1;">
                             <label>Semester</label>
-                            <select id="semester" class="form-control" onchange="fetchAvailableUnits()">
-                                <option value="">-- Select --</option>
-                                <option value="1">Semester 1</option>
-                                <option value="2">Semester 2</option>
-                            </select>
+                            <input type="number" id="semester" class="form-control" placeholder="1">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>📚 Select Your Enrolled Units</label>
-                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:6px;">Select your year & semester above, then pick units from the timetable below.</p>
-                        <div id="units-loading" style="font-size:0.8rem; color:var(--text-muted); display:none;">Loading available units...</div>
-                        <div id="units-container" style="max-height:180px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#f8fafc;">
-                            <p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p>
-                        </div>
-                        <input type="hidden" id="units" value="">
-                        <div id="selected-units-display" style="font-size:0.8rem; margin-top:6px; color:var(--accent-blue);"></div>
+                        <label>Enrolled Unit Codes (Comma Separated)</label>
+                        <input type="text" id="units" class="form-control" placeholder="e.g., COSC 104, DIA C011">
                     </div>
                     <button class="btn-submit" onclick="submitRegistration()">Complete Registration</button>
                 </div>
@@ -491,89 +452,14 @@
             document.getElementById('modal-overlay').style.display = show ? 'block' : 'none';
         }
 
-        // ==========================================
-        // 📚 SMART UNIT SELECTION FROM TIMETABLE
-        // ==========================================
-        let selectedUnits = [];
-
-        async function fetchAvailableUnits() {
-            const course = document.getElementById('course').value.trim();
-            const year = document.getElementById('year').value;
-            const semester = document.getElementById('semester').value;
-            const container = document.getElementById('units-container');
-            const loading = document.getElementById('units-loading');
-            
-            if (!year) {
-                container.innerHTML = '<p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p>';
-                return;
-            }
-            
-            loading.style.display = 'block';
-            container.innerHTML = '';
-            
-            // Build URL with course, year, semester params
-            let url = `${API_URL}/students/available-units?year=${year}`;
-            if (semester) url += `&semester=${semester}`;
-            if (course) url += `&course=${encodeURIComponent(course)}`;
-            
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                loading.style.display = 'none';
-                
-                if (data.units && data.units.length > 0) {
-                    let html = '';
-                    data.units.forEach(u => {
-                        const checked = selectedUnits.includes(u.code) ? 'checked' : '';
-                        html += `
-                            <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; border-bottom:1px solid #e2e8f0; font-size:0.85rem; cursor:pointer;">
-                                <input type="checkbox" value="${u.code.replace(/"/g, '"')}" onchange="toggleUnit('${u.code.replace(/'/g, "\\'")}')" ${checked}>
-                                <span><strong>${u.code}</strong>${u.name ? ' - ' + u.name : ''}</span>
-                            </label>`;
-                    });
-                    container.innerHTML = html;
-                    updateSelectedDisplay();
-                } else {
-                    container.innerHTML = '<p style="font-size:0.8rem; color:var(--text-muted); text-align:center;">No units found for this year/semester. Try another selection.</p>';
-                }
-            } catch (err) {
-                loading.style.display = 'none';
-                container.innerHTML = '<p style="font-size:0.8rem; color:var(--busy-red);">Error loading units.</p>';
-            }
-        }
-
-        function toggleUnit(code) {
-            const idx = selectedUnits.indexOf(code);
-            if (idx >= 0) {
-                selectedUnits.splice(idx, 1);
-            } else {
-                selectedUnits.push(code);
-            }
-            updateSelectedDisplay();
-        }
-
-        function updateSelectedDisplay() {
-            document.getElementById('units').value = selectedUnits.join(',');
-            const display = document.getElementById('selected-units-display');
-            if (selectedUnits.length === 0) {
-                display.innerHTML = '';
-            } else {
-                display.innerHTML = `✅ Selected: <strong>${selectedUnits.join(', ')}</strong>`;
-            }
-        }
-
         async function submitRegistration() {
-            // Collect selected units from checkboxes
-            const checkedBoxes = document.querySelectorAll('#units-container input[type="checkbox"]:checked');
-            const unitsList = Array.from(checkedBoxes).map(cb => cb.value).join(',');
-            
             const payload = {
                 reg_no: document.getElementById('reg_no').value.trim(),
                 password: document.getElementById('password').value,
                 course: document.getElementById('course').value,
                 year: parseInt(document.getElementById('year').value) || 1,
                 semester: parseInt(document.getElementById('semester').value) || 1,
-                units: unitsList || document.getElementById('units').value
+                units: document.getElementById('units').value
             };
             try {
                 const response = await fetch(`${API_URL}/students/register`, {
@@ -819,7 +705,7 @@
                 return;
             }
             try {
-                const response = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
+                const response = await fetch(`${API_URL}/students/schedule?reg_no=${encodeURIComponent(loggedInRegNo)}`);
                 const data = await response.json();
                 if (!response.ok) {
                     container.innerHTML = `<p style="padding:20px; color:var(--busy-red);">${data.detail || 'Unable to load profile dashboard.'}</p>`;
@@ -877,7 +763,7 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
+                const response = await fetch(`${API_URL}/students/schedule?reg_no=${encodeURIComponent(loggedInRegNo)}`);
                 if (!response.ok) {
                     container.innerHTML = `<p style="color:var(--busy-red); font-size:0.85rem; padding:10px;">⚠️ Profile Lookup Error: Not Found inside the systemic registration ledger database.</p>`;
                     return;
@@ -1173,106 +1059,6 @@
             }
         }
 
-        // ==========================================
-        // 🗺️ ADMIN CAMPUS NODE MANAGEMENT FUNCTIONS
-        // ==========================================
-        async function addCampusNode() {
-            if (loggedInUserType !== 'admin') {
-                alert('Admin login required.');
-                return;
-            }
-            const adminPwd = document.getElementById('admin_password').value;
-            if (!adminPwd) { alert('Enter admin password in account portal.'); return; }
-            
-            const name = document.getElementById('node-name').value.trim();
-            const lat = parseFloat(document.getElementById('node-lat').value);
-            const lng = parseFloat(document.getElementById('node-lng').value);
-            const floor = parseInt(document.getElementById('node-floor').value) || 1;
-            const desc = document.getElementById('node-desc').value.trim();
-            const statusDiv = document.getElementById('node-add-status');
-            
-            if (!name) { alert('Node name is required.'); return; }
-            if (isNaN(lat) || isNaN(lng)) { alert('Valid latitude and longitude are required.'); return; }
-            
-            try {
-                const response = await fetch(`${API_URL}/admin/nodes/add?admin_password=${encodeURIComponent(adminPwd)}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ name, lat, lng, floor, description: desc })
-                });
-                const data = await response.json();
-                if (response.ok) {
-                    statusDiv.innerHTML = `<span style="color:#10b981;">✅ ${data.message}</span>`;
-                    document.getElementById('node-name').value = '';
-                    document.getElementById('node-lat').value = '';
-                    document.getElementById('node-lng').value = '';
-                    document.getElementById('node-desc').value = '';
-                } else {
-                    statusDiv.innerHTML = `<span style="color:#ef4444;">❌ ${data.detail || 'Failed'}</span>`;
-                }
-            } catch (err) {
-                statusDiv.innerHTML = `<span style="color:#ef4444;">❌ Error: ${err.message}</span>`;
-            }
-        }
-
-        async function fetchAllNodes() {
-            if (loggedInUserType !== 'admin') {
-                alert('Admin login required.');
-                return;
-            }
-            const container = document.getElementById('nodes-list-container');
-            const adminPwd = document.getElementById('admin_password').value;
-            if (!adminPwd) { container.innerHTML = '<p style="color:var(--busy-red);">Enter admin password first.</p>'; return; }
-            
-            container.innerHTML = '<p style="color:var(--text-muted);">Loading nodes...</p>';
-            try {
-                const response = await fetch(`${API_URL}/admin/nodes/all?admin_password=${encodeURIComponent(adminPwd)}`);
-                const data = await response.json();
-                if (!response.ok) { container.innerHTML = `<p style="color:var(--busy-red);">${data.detail}</p>`; return; }
-                if (!data || data.length === 0) { container.innerHTML = '<p style="color:var(--text-muted);">No nodes found.</p>'; return; }
-                
-                let html = `<p style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">Total: ${data.length} nodes</p>`;
-                data.forEach(node => {
-                    const status = node.occupancy_status === 'UNVERIFIED' ? '—' : node.occupancy_status;
-                    html += `
-                        <div style="background:#f8fafc; border-radius:10px; padding:8px; margin-bottom:6px; border:1px solid #e2e8f0; font-size:0.8rem;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                <div>
-                                    <strong>${node.name}</strong>
-                                    <br><span style="color:var(--text-muted);">${node.lat.toFixed(4)}, ${node.lng.toFixed(4)} | Floor ${node.floor} | ${status}</span>
-                                    ${node.description ? `<br><span style="color:#94a3b8;">${node.description}</span>` : ''}
-                                </div>
-                                <button onclick="deleteCampusNode('${node.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--busy-red); cursor:pointer; font-size:1.2rem; padding:4px;" title="Delete">&times;</button>
-                            </div>
-                        </div>`;
-                });
-                container.innerHTML = html;
-            } catch (err) {
-                container.innerHTML = `<p style="color:var(--busy-red);">Error: ${err.message}</p>`;
-            }
-        }
-
-        async function deleteCampusNode(nodeName) {
-            if (loggedInUserType !== 'admin') { alert('Admin login required.'); return; }
-            if (!confirm(`Delete node "${nodeName}"? This will also remove its connections.`)) return;
-            
-            const adminPwd = document.getElementById('admin_password').value;
-            try {
-                const response = await fetch(`${API_URL}/admin/nodes/delete/${encodeURIComponent(nodeName)}?admin_password=${encodeURIComponent(adminPwd)}`, {
-                    method: 'DELETE'
-                });
-                const data = await response.json();
-                if (response.ok) {
-                    alert(data.message);
-                    fetchAllNodes();
-                } else {
-                    alert('Error: ' + (data.detail || 'Delete failed'));
-                }
-            } catch (err) {
-                alert('Connection error: ' + err.message);
-            }
-        }
-
         async function clearAllTimetable() {
             if (loggedInUserType !== 'admin') {
                 alert('Admin login required.');
@@ -1300,6 +1086,8 @@
         }
 
         window.onload = () => { 
+            // Set logo using full API URL (works when app.html is opened locally)
+            document.getElementById('app-logo').src = `${API_URL}/static/uploads/logo.png`;
             fetchRoomStatus(); 
             setInterval(fetchRoomStatus, 8000); 
         };

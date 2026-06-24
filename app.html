@@ -53,7 +53,7 @@
         .step-entry { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.85rem; color: var(--text-dark); border-top: 1px dashed #e2e8f0; padding-top: 8px; }
 
         .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; height: 65px; background-color: var(--nav-bg); display: flex; justify-content: space-around; align-items: center; z-index: 999; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; background: none; border: none; cursor: pointer; width: 25%; height: 100%; justify-content: center; font-size: 0.7rem; font-weight: 600; gap: 4px; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; color: #94a3b8; background: none; border: none; cursor: pointer; width: 20%; height: 100%; justify-content: center; font-size: 0.7rem; font-weight: 600; gap: 4px; }
         .nav-item.active { color: white; }
         .nav-item i { font-size: 1.2rem; }
         .filter-btn { padding: 8px 12px; background: #f1f5f9; color: var(--text-dark); border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
@@ -76,13 +76,33 @@
             
             <div id="panel-dashboard" class="view-panel active">
                 <div class="section-title">Live Space Allocations</div>
+                <div class="search-box" style="padding: 10px; margin-bottom: 12px;">
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="room-search-input" class="form-control" placeholder="🔍 Search rooms by name, status, or schedule..." oninput="handleRoomSearch()" style="padding-left: 36px;">
+                    </div>
+                </div>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <button class="filter-btn active" onclick="filterRooms('all')" style="flex: 1; min-width: 70px;">All</button>
-                    <button class="filter-btn" onclick="filterRooms('scheduled')" style="flex: 1; min-width: 70px;">Scheduled</button>
-                    <button class="filter-btn" onclick="filterRooms('occupied')" style="flex: 1; min-width: 70px;">Occupied</button>
-                    <button class="filter-btn" onclick="filterRooms('empty')" style="flex: 1; min-width: 70px;">Empty</button>
+                    <button class="filter-btn active" onclick="filterRooms('all', event)" style="flex: 1; min-width: 70px;">All</button>
+                    <button class="filter-btn" onclick="filterRooms('scheduled', event)" style="flex: 1; min-width: 70px;">Scheduled</button>
+                    <button class="filter-btn" onclick="filterRooms('occupied', event)" style="flex: 1; min-width: 70px;">Occupied</button>
+                    <button class="filter-btn" onclick="filterRooms('empty', event)" style="flex: 1; min-width: 70px;">Empty</button>
                 </div>
                 <div id="rooms-list-container"></div>
+                
+                <!-- CCTV Live View Modal -->
+                <div id="cctv-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:none; justify-content:center; align-items:center;">
+                    <div style="position:relative; width:90%; max-width:500px;">
+                        <button onclick="closeCCTV()" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2rem; cursor:pointer;">&times;</button>
+                        <div id="cctv-header" style="color:white; text-align:center; margin-bottom:10px; font-weight:700;"></div>
+                        <div id="cctv-content" style="width:100%; height:300px; background:#000; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#94a3b8;">
+                            Loading camera feed...
+                        </div>
+                        <p style="color:#94a3b8; font-size:0.8rem; text-align:center; margin-top:8px;">
+                            ⚡ Supports RTSP (VLC), HTTP streams, YouTube Live, or any embeddable URL
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <div id="panel-routes" class="view-panel">
@@ -246,9 +266,10 @@
 
             <nav class="bottom-nav">
                 <button class="nav-item active" onclick="changePanel('panel-dashboard', this)"><i class="fa-solid fa-chart-simple"></i><span>Dashboard</span></button>
-                <button class="nav-item" onclick="changePanel('panel-routes', this)"><i class="fa-solid fa-map-location-dot"></i><span>Map Routes</span></button>
+                <button class="nav-item" onclick="changePanel('panel-routes', this)"><i class="fa-solid fa-map-location-dot"></i><span>Map</span></button>
                 <button class="nav-item" onclick="changePanel('panel-schedules', this); fetchPersonalSchedule();"><i class="fa-solid fa-calendar-days"></i><span>Schedules</span></button>
                 <button class="nav-item" onclick="changePanel('panel-profile', this); fetchProfile();"><i class="fa-solid fa-user"></i><span>Profile</span></button>
+                <button class="nav-item" onclick="changePanel('panel-admin', this); if(loggedInUserType==='admin') fetchAdminStatus();"><i class="fa-solid fa-shield-halved"></i><span>Admin</span></button>
             </nav>
         </div>
 
@@ -287,6 +308,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         const API_URL = 'http://127.0.0.1:8000';
         let map = null;
@@ -429,7 +451,7 @@
                 const pathData = await response.json();
                 
                 const coordinatePath = pathData.coordinates || [[originLat, originLng]];
-                const totalDistanceMeters = pathData.total_distance || L.latLng(originLat, originLng).distanceTo(L.latLng(coordinatePath[coordinatePath.length-1]));
+                const totalDistanceMeters = pathData.total_distance_meters || pathData.total_distance || L.latLng(originLat, originLng).distanceTo(L.latLng(coordinatePath[coordinatePath.length-1]));
                 const systemInstructions = pathData.instructions || "Follow highlighted pathways to destination building.";
 
                 routeLine = L.polyline(coordinatePath, {color: '#0284c7', weight: 6, lineCap: 'round'}).addTo(map);
@@ -939,14 +961,29 @@
             }
         }
 
-        function filterRooms(filterType) {
+        function filterRooms(filterType, evt) {
             currentFilter = filterType;
             
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            if (evt && evt.target) {
+                evt.target.classList.add('active');
+            } else {
+                // Fallback: find button by text or data attribute
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    if (btn.textContent.trim().toLowerCase() === filterType) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
             
+            displayFilteredRooms();
+        }
+        
+        let searchQuery = '';
+        function handleRoomSearch() {
+            searchQuery = document.getElementById('room-search-input').value.toLowerCase().trim();
             displayFilteredRooms();
         }
 
@@ -971,6 +1008,18 @@
                 });
             }
 
+            // Apply search query filter
+            if (searchQuery) {
+                filteredRooms = filteredRooms.filter(room => {
+                    const venue = (room.venue || '').toLowerCase();
+                    const status = (room.status || '').toLowerCase();
+                    const schedule = (room.current_schedule || '').toLowerCase();
+                    return venue.includes(searchQuery) || 
+                           status.includes(searchQuery) || 
+                           schedule.includes(searchQuery);
+                });
+            }
+
             if (filteredRooms.length === 0) {
                 container.innerHTML = `<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>📭 No rooms match the "${currentFilter}" filter.</p>`;
                 return;
@@ -979,6 +1028,9 @@
             container.innerHTML = '';
             filteredRooms.forEach(room => {
                 const statusVal = room.status || "AVAILABLE";
+                // Look for camera URL in system nodes
+                const node = systemNodes.find(n => n.name === room.venue);
+                const hasCamera = node && node.camera_url;
                 container.innerHTML += `
                     <div class="room-card">
                         <div class="card-top">
@@ -987,9 +1039,92 @@
                         </div>
                         <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i><span>${room.current_schedule || 'Empty'}</span></div>
                         <div style="font-size:0.7rem; color:#94a3b8;"><i class="fa-regular fa-clock"></i> <span>${room.last_verified || 'Synced'}</span></div>
+                        ${hasCamera ? `
+                            <button onclick="openCCTV('${room.venue.replace(/'/g, "\\'")}', '${node.camera_url.replace(/'/g, "\\'")}')" 
+                                    style="width:100%; padding:8px; background:#dc2626; color:white; border:none; border-radius:8px; font-weight:700; cursor:pointer; font-size:0.8rem; margin-top:4px;">
+                                📹 Live CCTV
+                            </button>
+                        ` : ''}
                     </div>
                 `;
             });
+        }
+
+        // ==========================================
+        // 📹 CCTV LIVE VIEW FUNCTIONS
+        // ==========================================
+        function openCCTV(venueName, cameraUrl) {
+            const modal = document.getElementById('cctv-modal');
+            const header = document.getElementById('cctv-header');
+            const content = document.getElementById('cctv-content');
+            
+            modal.style.display = 'flex';
+            header.innerHTML = `📹 Live Feed: <span style="color:#ef4444;">${venueName}</span>`;
+            
+            if (!cameraUrl) {
+                content.innerHTML = `<p style="color:#94a3b8;">No camera URL configured for this room.</p>`;
+                return;
+            }
+            
+            const urlLower = cameraUrl.toLowerCase();
+            
+            // HLS Stream (.m3u8) - Use video element with HLS.js
+            if (urlLower.endsWith('.m3u8')) {
+                content.innerHTML = `
+                    <video id="hls-video" controls autoplay style="width:100%; height:100%; border-radius:8px; background:#000;">
+                        <source src="${cameraUrl}" type="application/x-mpegURL">
+                        Your browser does not support HLS streams.
+                    </video>
+                    <p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">
+                        📡 HLS Stream • If it doesn't play, try opening in <a href="${cameraUrl}" target="_blank" style="color:#ef4444;">VLC Media Player</a>
+                    </p>`;
+                return;
+            }
+            
+            // RTSP - provide VLC link
+            if (urlLower.startsWith('rtsp://')) {
+                content.innerHTML = `
+                    <div style="text-align:center; padding:20px;">
+                        <p style="color:white; margin-bottom:15px; font-size:1rem;">🔴 RTSP Stream</p>
+                        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:15px;">RTSP streams require an external player like <strong>VLC Media Player</strong></p>
+                        <a href="${cameraUrl}" target="_blank" style="display:inline-block; padding:12px 24px; background:#ef4444; color:white; border-radius:8px; text-decoration:none; font-weight:700;">
+                            📺 Open in VLC
+                        </a>
+                        <p style="color:#64748b; font-size:0.75rem; margin-top:12px;">URL: <code style="color:#94a3b8;">${cameraUrl}</code></p>
+                    </div>`;
+                return;
+            }
+            
+            // YouTube
+            if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
+                let embedUrl = cameraUrl;
+                if (cameraUrl.includes('watch?v=')) {
+                    embedUrl = cameraUrl.replace('watch?v=', 'embed/').split('&')[0];
+                } else if (cameraUrl.includes('youtu.be/')) {
+                    const vid = cameraUrl.split('youtu.be/')[1].split('?')[0];
+                    embedUrl = `https://www.youtube.com/embed/${vid}`;
+                }
+                content.innerHTML = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; border-radius:8px;" allowfullscreen></iframe>`;
+                return;
+            }
+            
+            // Generic HTTP/HTTPS
+            if (urlLower.startsWith('http://') || urlLower.startsWith('https://')) {
+                content.innerHTML = `
+                    <iframe src="${cameraUrl}" style="width:100%; height:100%; border:none; border-radius:8px;" allowfullscreen sandbox="allow-scripts allow-same-origin"></iframe>
+                    <p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">If the feed doesn't load, the URL may require authentication or not support embedding.</p>`;
+                return;
+            }
+            
+            content.innerHTML = `<p style="color:#94a3b8;">Unsupported URL format. Use HLS (.m3u8), RTSP, HTTP, or YouTube URL.</p>`;
+        }
+
+        function closeCCTV() {
+            const modal = document.getElementById('cctv-modal');
+            modal.style.display = 'none';
+            const video = document.getElementById('hls-video');
+            if (video) { video.pause(); video.src = ''; }
+            document.getElementById('cctv-content').innerHTML = 'Loading camera feed...';
         }
 
         // ==========================================
@@ -1234,13 +1369,19 @@
                 let html = `<p style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">Total: ${data.length} nodes</p>`;
                 data.forEach(node => {
                     const status = node.occupancy_status === 'UNVERIFIED' ? '—' : node.occupancy_status;
+                    const camStatus = node.camera_url ? '📹' : '—';
                     html += `
                         <div style="background:#f8fafc; border-radius:10px; padding:8px; margin-bottom:6px; border:1px solid #e2e8f0; font-size:0.8rem;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                                 <div>
                                     <strong>${node.name}</strong>
-                                    <br><span style="color:var(--text-muted);">${node.lat.toFixed(4)}, ${node.lng.toFixed(4)} | Floor ${node.floor} | ${status}</span>
+                                    <br><span style="color:var(--text-muted);">📍 ${node.lat.toFixed(4)}, ${node.lng.toFixed(4)} | Floor ${node.floor} | ${status}</span>
                                     ${node.description ? `<br><span style="color:#94a3b8;">${node.description}</span>` : ''}
+                                    <div style="margin-top:4px; display:flex; gap:4px; align-items:center;">
+                                        <span style="font-size:0.75rem; color:var(--text-muted);">📹 Camera:</span>
+                                        <input type="text" id="cam-${node.name.replace(/[^a-zA-Z0-9]/g,'_')}" value="${node.camera_url || ''}" placeholder="RTSP/HTTP URL" style="flex:1; padding:4px 6px; border:1px solid #e2e8f0; border-radius:4px; font-size:0.75rem;">
+                                        <button onclick="setNodeCamera('${node.name.replace(/'/g, "\\'")}')" style="background:#0284c7; color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:0.7rem;">Set</button>
+                                    </div>
                                 </div>
                                 <button onclick="deleteCampusNode('${node.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--busy-red); cursor:pointer; font-size:1.2rem; padding:4px;" title="Delete">&times;</button>
                             </div>
@@ -1249,6 +1390,32 @@
                 container.innerHTML = html;
             } catch (err) {
                 container.innerHTML = `<p style="color:var(--busy-red);">Error: ${err.message}</p>`;
+            }
+        }
+
+        async function setNodeCamera(nodeName) {
+            if (loggedInUserType !== 'admin') { alert('Admin login required.'); return; }
+            const adminPwd = document.getElementById('admin_password').value;
+            if (!adminPwd) { alert('Enter admin password in account portal.'); return; }
+            
+            const safeId = 'cam-' + nodeName.replace(/[^a-zA-Z0-9]/g, '_');
+            const cameraUrl = document.getElementById(safeId)?.value || '';
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/nodes/camera/${encodeURIComponent(nodeName)}?admin_password=${encodeURIComponent(adminPwd)}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ camera_url: cameraUrl })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert(`✅ Camera URL for "${nodeName}" updated!`);
+                    fetchSystemNodesOnly(); // Reload nodes for dashboard camera buttons
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed'));
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
             }
         }
 

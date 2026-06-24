@@ -20,7 +20,8 @@ def seed_map_data():
             lng REAL DEFAULT 0.0,
             occupancy_status TEXT DEFAULT 'UNVERIFIED',
             last_verified TEXT DEFAULT 'Never',
-            image_url TEXT
+            image_url TEXT,
+            camera_url TEXT DEFAULT NULL
         )
     ''')
 

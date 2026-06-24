@@ -137,8 +137,8 @@ def get_room_status():
 @app.get("/api/geo-nodes")
 def get_geo_nodes():
     with get_db() as conn:
-        rows = conn.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
-        return [{"name": row['name'], "lat": row['lat'], "lng": row['lng'], "description": row['description']} for row in rows]
+        rows = conn.execute("SELECT name, lat, lng, description, camera_url FROM nodes").fetchall()
+        return [{"name": row['name'], "lat": row['lat'], "lng": row['lng'], "description": row['description'], "camera_url": row['camera_url']} for row in rows]
 
 # ==========================================
 # 👤 ENDPOINT 3: STUDENT REGISTRATION / LOGIN
@@ -649,3 +649,22 @@ def update_node(node_name: str, admin_password: str = Query(...), node: NodeAddR
             (node.lat, node.lng, node.floor, node.description, node_name))
         conn.commit()
     return {"status": "success", "message": f"Node '{node_name}' updated!"}
+
+# ============================================================
+# 📹 ENDPOINT 10: CCTV CAMERA MANAGEMENT
+# ============================================================
+class SetCameraRequest(BaseModel):
+    camera_url: str = ""
+
+@app.post("/admin/nodes/camera/{node_name}")
+def set_node_camera(node_name: str, admin_password: str = Query(...), req: SetCameraRequest = None):
+    """Admin-only: Set/update the CCTV camera URL for a campus node."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        conn.execute("UPDATE nodes SET camera_url = ? WHERE name = ?", (req.camera_url, node_name))
+        conn.commit()
+    return {"status": "success", "message": f"Camera URL for '{node_name}' updated!", "camera_url": req.camera_url}

@@ -10,7 +10,8 @@ cur.execute('''CREATE TABLE IF NOT EXISTS nodes (
     name TEXT PRIMARY KEY, floor INTEGER DEFAULT 1, description TEXT,
     lat REAL DEFAULT 0.0, lng REAL DEFAULT 0.0,
     occupancy_status TEXT DEFAULT 'UNVERIFIED',
-    last_verified TEXT DEFAULT 'Never', image_url TEXT)''')
+    last_verified TEXT DEFAULT 'Never', image_url TEXT,
+    camera_url TEXT DEFAULT NULL)''')
 
 cur.execute('''CREATE TABLE IF NOT EXISTS edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +50,7 @@ if count == 0:
         ("Bs/3", -0.093857, 37.991478, 1, "Lecture"),
     ]
     for name, lat, lng, floor, desc in campus_nodes:
-        cur.execute("INSERT OR IGNORE INTO nodes VALUES (?,?,?,?,?,'UNVERIFIED','Never',NULL)", 
+        cur.execute("INSERT OR IGNORE INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified) VALUES (?,?,?,?,?,'UNVERIFIED','Never')", 
                    (name, floor, desc, lat, lng))
     conn.commit()
     print(f"  Added {len(campus_nodes)} nodes")

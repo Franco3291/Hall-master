@@ -128,8 +128,8 @@ def seed_map_data():
 
     conn.commit()
     conn.close()
-    print(f"✅ Database updated with {len(campus_nodes)} nodes and {len(campus_edges)} edges!")
-    print(f"   See your campus nodes on the Map Routes tab in app.html")
+    print(f"Database updated with {len(campus_nodes)} nodes and {len(campus_edges)} edges!")
+    print("   See your campus nodes on the Map Routes tab in app.html")
 
 if __name__ == '__main__':
     seed_map_data()

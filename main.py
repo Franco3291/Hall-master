@@ -171,13 +171,14 @@ def get_room_status():
 @app.get("/api/geo-nodes")
 def get_geo_nodes():
     with get_db() as conn:
-        rows = conn.execute("SELECT name, lat, lng, description FROM nodes").fetchall()
+        rows = conn.execute("SELECT name, lat, lng, description, camera_url FROM nodes").fetchall()
         return [
             {
                 "name": row['name'],
                 "lat": row['lat'],
                 "lng": row['lng'],
-                "description": row['description']
+                "description": row['description'],
+                "camera_url": row['camera_url']
             } for row in rows
         ]
 
@@ -224,8 +225,8 @@ def login_admin(req: AdminLoginRequest):
 # ==========================================
 # 📅 ENDPOINT 4: PERSONALIZED SCHEDULE TRACKING
 # ==========================================
-@app.get("/students/schedule")
-def get_student_schedule(reg_no: str = Query(...)):
+@app.get("/students/schedule/{reg_no:path}")
+def get_student_schedule(reg_no: str):
     with get_db() as conn:
         student = conn.execute("SELECT course, year, semester, units FROM students WHERE reg_no = ?", (reg_no,)).fetchone()
         if not student:
@@ -749,3 +750,143 @@ def clear_timetable(admin_password: str = Query(...)):
         conn.commit()
     
     return {"status": "success", "message": "All timetable entries cleared!"}
+
+
+# ============================================================
+# 🎓 ENDPOINT 9: SMART UNIT SELECTION FOR STUDENT REGISTRATION
+# ============================================================
+class SetCameraRequest(BaseModel):
+    camera_url: str = ""
+
+class NodeAddRequest(BaseModel):
+    name: str
+    lat: float
+    lng: float
+    floor: int = 1
+    description: str = ""
+
+@app.get("/students/available-units")
+def get_available_units(course: str = Query(""), year: int = Query(0), semester: int = Query(0)):
+    """Returns distinct course codes filtered by course name, year, semester."""
+    with get_db() as conn:
+        rows = conn.execute('''SELECT DISTINCT course_code, course_name, day_of_week, start_time, end_time, venue 
+                               FROM timetable ORDER BY course_code''').fetchall()
+        seen = {}
+        for r in rows:
+            code = str(r['course_code']) if r['course_code'] else ""
+            name = str(r['course_name']) if r['course_name'] else ""
+            venue = str(r['venue']) if r['venue'] else ""
+            day = str(r['day_of_week']) if r['day_of_week'] else ""
+            if not code:
+                continue
+            if year > 0:
+                nums = [int(s) for s in code.split() if s.isdigit()]
+                if nums:
+                    first_digit = int(str(nums[0])[0])
+                    if first_digit != year:
+                        if year not in [int(d) for d in str(nums[0])]:
+                            continue
+            if course:
+                course_lower = course.lower()
+                course_keywords = course_lower.split()
+                match_found = False
+                for kw in course_keywords:
+                    if len(kw) < 2:
+                        continue
+                    if kw in name.lower() or kw in venue.lower() or kw in code.lower():
+                        match_found = True
+                        break
+                if not match_found:
+                    words = course_lower.split()
+                    acronyms = []
+                    for w in words:
+                        if len(w) >= 2 and w not in ['of', 'in', 'and', 'the', 'for']:
+                            acronyms.append(w[:3].upper())
+                    for ac in acronyms:
+                        if ac and (ac in code.upper() or ac in venue.upper()):
+                            match_found = True
+                            break
+                if not match_found:
+                    continue
+            if code not in seen:
+                seen[code] = {"code": code, "name": name if name and name != code else "", "venue": venue, "day": day}
+        unique = list(seen.values())
+        if course:
+            course_lower = course.lower()
+            def sort_key(item):
+                score = 0
+                if course_lower in item['venue'].lower(): score += 3
+                if course_lower in item['name'].lower(): score += 2
+                if course_lower in item['code'].lower(): score += 1
+                return -score
+            unique.sort(key=sort_key)
+        return {"units": unique, "total": len(unique)}
+
+
+# ============================================================
+# 📌 ENDPOINT 10: ADMIN NODE MANAGEMENT
+# ============================================================
+@app.get("/admin/nodes/all")
+def get_all_nodes(admin_password: str = Query(...)):
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        rows = conn.execute("SELECT name, lat, lng, floor, description, occupancy_status, camera_url FROM nodes ORDER BY name").fetchall()
+        return [dict(row) for row in rows]
+
+@app.post("/admin/nodes/add")
+def add_node(admin_password: str = Query(...), node: NodeAddRequest = None):
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    if not node.name or not node.name.strip():
+        raise HTTPException(status_code=400, detail="Node name is required.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node.name.strip(),)).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Node '{node.name}' already exists.")
+        conn.execute('''INSERT INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified)
+            VALUES (?, ?, ?, ?, ?, 'UNVERIFIED', 'Never')''', (node.name.strip(), node.floor, node.description, node.lat, node.lng))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node.name}' added!"}
+
+@app.delete("/admin/nodes/delete/{node_name}")
+def delete_node(node_name: str, admin_password: str = Query(...)):
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        conn.execute("DELETE FROM edges WHERE node_from = ? OR node_to = ?", (node_name, node_name))
+        conn.execute("DELETE FROM nodes WHERE name = ?", (node_name,))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node_name}' deleted!"}
+
+@app.put("/admin/nodes/update/{node_name}")
+def update_node(node_name: str, admin_password: str = Query(...), node: NodeAddRequest = None):
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        conn.execute("UPDATE nodes SET lat=?, lng=?, floor=?, description=? WHERE name=?",
+            (node.lat, node.lng, node.floor, node.description, node_name))
+        conn.commit()
+    return {"status": "success", "message": f"Node '{node_name}' updated!"}
+
+# ============================================================
+# 📹 ENDPOINT 11: CCTV CAMERA MANAGEMENT
+# ============================================================
+@app.post("/admin/nodes/camera/{node_name}")
+def set_node_camera(node_name: str, admin_password: str = Query(...), req: SetCameraRequest = None):
+    """Admin-only: Set/update the CCTV camera URL for a campus node."""
+    if admin_password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        existing = conn.execute("SELECT name FROM nodes WHERE name = ?", (node_name,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Node '{node_name}' not found.")
+        conn.execute("UPDATE nodes SET camera_url = ? WHERE name = ?", (req.camera_url, node_name))
+        conn.commit()
+    return {"status": "success", "message": f"Camera URL for '{node_name}' updated!", "camera_url": req.camera_url}

@@ -749,6 +749,10 @@
             });
         }
 
+        // ==========================================
+        // 📹 CCTV LIVE VIEW FUNCTIONS
+        // Supports: HLS (.m3u8), RTSP (VLC), MJPEG (IP Webcam), YouTube, HTTP
+        // ==========================================
         function openCCTV(venueName, cameraUrl) {
             const modal = document.getElementById('cctv-modal');
             const header = document.getElementById('cctv-header');
@@ -756,25 +760,49 @@
             modal.style.display = 'flex';
             header.innerHTML = `Live Feed: <span style="color:#ef4444;">${venueName}</span>`;
             if (!cameraUrl) { content.innerHTML = `<p style="color:#94a3b8;">No camera URL configured for this room.</p>`; return; }
+            
             const urlLower = cameraUrl.toLowerCase();
+            
+            // HLS Stream (.m3u8)
             if (urlLower.endsWith('.m3u8')) {
                 content.innerHTML = `<video id="hls-video" controls autoplay style="width:100%; height:100%; border-radius:8px; background:#000;"><source src="${cameraUrl}" type="application/x-mpegURL">Your browser does not support HLS streams.</video><p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">HLS Stream - If it doesn't play, try opening in <a href="${cameraUrl}" target="_blank" style="color:#ef4444;">VLC Media Player</a></p>`;
                 return;
             }
+            
+            // RTSP - provide VLC link
             if (urlLower.startsWith('rtsp://')) {
                 content.innerHTML = `<div style="text-align:center; padding:20px;"><p style="color:white; margin-bottom:15px; font-size:1rem;">RTSP Stream</p><p style="color:#94a3b8; font-size:0.85rem; margin-bottom:15px;">RTSP streams require an external player like <strong>VLC Media Player</strong></p><a href="${cameraUrl}" target="_blank" style="display:inline-block; padding:12px 24px; background:#ef4444; color:white; border-radius:8px; text-decoration:none; font-weight:700;">Open in VLC</a><p style="color:#64748b; font-size:0.75rem; margin-top:12px;">URL: <code style="color:#94a3b8;">${cameraUrl}</code></p></div>`;
                 return;
             }
+            
+            // MJPEG / IP Webcam streams (contains /video or /videofeed in path)
+            // IP Webcam typically serves at http://192.168.x.x:8080/video or /videofeed
+            if (urlLower.includes('/video') || urlLower.includes('/mjpeg') || urlLower.includes('/stream')) {
+                // Use an img tag to load MJPEG stream
+                content.innerHTML = `<img src="${cameraUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:8px;" alt="Camera Feed"><p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">MJPEG Stream - If the feed doesn't load, check that both devices are on the same network and the IP is correct.</p>`;
+                return;
+            }
+            
+            // YouTube
             if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
                 let embedUrl = cameraUrl;
                 if (cameraUrl.includes('watch?v=')) embedUrl = cameraUrl.replace('watch?v=', 'embed/').split('&')[0];
                 else if (cameraUrl.includes('youtu.be/')) { const vid = cameraUrl.split('youtu.be/')[1].split('?')[0]; embedUrl = `https://www.youtube.com/embed/${vid}`; }
                 content.innerHTML = `<iframe src="${embedUrl}" style="width:100%; height:100%; border:none; border-radius:8px;" allowfullscreen></iframe>`; return;
             }
+            
+            // Generic HTTP/HTTPS - try iframe first, detect if it's a direct MJPEG feed
             if (urlLower.startsWith('http://') || urlLower.startsWith('https://')) {
-                content.innerHTML = `<iframe src="${cameraUrl}" style="width:100%; height:100%; border:none; border-radius:8px;" allowfullscreen sandbox="allow-scripts allow-same-origin"></iframe><p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">If the feed doesn't load, the URL may require authentication or not support embedding.</p>`; return;
+                // Check if it looks like a direct image/stream URL (contains image extensions)
+                if (urlLower.endsWith('.jpg') || urlLower.endsWith('.jpeg') || urlLower.endsWith('.mjpg')) {
+                    content.innerHTML = `<img src="${cameraUrl}" style="width:100%; height:100%; object-fit:contain; border-radius:8px;" alt="Camera Feed"><p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">Direct JPEG Stream - Auto-refreshing image feed.</p>`;
+                } else {
+                    content.innerHTML = `<iframe src="${cameraUrl}" style="width:100%; height:100%; border:none; border-radius:8px;" allowfullscreen sandbox="allow-scripts allow-same-origin"></iframe><p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">If the feed doesn't load, the URL may require authentication. Note: If loading from a local IP camera, ensure both devices are on the same network.</p>`;
+                }
+                return;
             }
-            content.innerHTML = `<p style="color:#94a3b8;">Unsupported URL format. Use HLS (.m3u8), RTSP, HTTP, or YouTube URL.</p>`;
+            
+            content.innerHTML = `<p style="color:#94a3b8;">Unsupported URL format. Use HLS (.m3u8), RTSP, HTTP, YouTube, or MJPEG stream URL.</p>`;
         }
 
         function closeCCTV() {
@@ -890,7 +918,7 @@
                 if (!data || data.length === 0) { container.innerHTML = '<p style="color:var(--text-muted);">No nodes found.</p>'; return; }
                 let html = `<p style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">Total: ${data.length} nodes</p>`;
                 data.forEach(node => {
-                    html += `<div style="background:#f8fafc; border-radius:10px; padding:8px; margin-bottom:6px; border:1px solid #e2e8f0; font-size:0.8rem;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div><strong>${node.name}</strong><br><span style="color:var(--text-muted);">${node.lat.toFixed(4)}, ${node.lng.toFixed(4)} | Floor ${node.floor} | ${node.occupancy_status === 'UNVERIFIED' ? '--' : node.occupancy_status}</span>${node.description ? `<br><span style="color:#94a3b8;">${node.description}</span>` : ''}<div style="margin-top:4px; display:flex; gap:4px; align-items:center;"><span style="font-size:0.75rem; color:var(--text-muted);">Camera:</span><input type="text" id="cam-${node.name.replace(/[^a-zA-Z0-9]/g,'_')}" value="${node.camera_url || ''}" placeholder="RTSP/HTTP URL" style="flex:1; padding:4px 6px; border:1px solid #e2e8f0; border-radius:4px; font-size:0.75rem;"><button onclick="setNodeCamera('${node.name.replace(/'/g, "\\'")}')" style="background:#0284c7; color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:0.7rem;">Set</button></div></div><button onclick="deleteCampusNode('${node.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--busy-red); cursor:pointer; font-size:1.2rem; padding:4px;" title="Delete">&times;</button></div></div>`;
+                    html += `<div style="background:#f8fafc; border-radius:10px; padding:8px; margin-bottom:6px; border:1px solid #e2e8f0; font-size:0.8rem;"><div style="display:flex; justify-content:space-between; align-items:flex-start;"><div><strong>${node.name}</strong><br><span style="color:var(--text-muted);">${node.lat.toFixed(4)}, ${node.lng.toFixed(4)} | Floor ${node.floor} | ${node.occupancy_status === 'UNVERIFIED' ? '--' : node.occupancy_status}</span>${node.description ? `<br><span style="color:#94a3b8;">${node.description}</span>` : ''}<div style="margin-top:4px; display:flex; gap:4px; align-items:center;"><span style="font-size:0.75rem; color:var(--text-muted);">Camera:</span><input type="text" id="cam-${node.name.replace(/[^a-zA-Z0-9]/g,'_')}" value="${node.camera_url || ''}" placeholder="RTSP/HTTP/MJPEG URL" style="flex:1; padding:4px 6px; border:1px solid #e2e8f0; border-radius:4px; font-size:0.75rem;"><button onclick="setNodeCamera('${node.name.replace(/'/g, "\\'")}')" style="background:#0284c7; color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:0.7rem;">Set</button></div></div><button onclick="deleteCampusNode('${node.name.replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--busy-red); cursor:pointer; font-size:1.2rem; padding:4px;" title="Delete">&times;</button></div></div>`;
                 });
                 container.innerHTML = html;
             } catch (err) { container.innerHTML = `<p style="color:var(--busy-red);">Error: ${err.message}</p>`; }

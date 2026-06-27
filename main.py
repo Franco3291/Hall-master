@@ -38,6 +38,67 @@ def get_db():
     finally:
         conn.close()
 
+
+# ==========================================
+# 🌱 AUTO-SEED DATABASE ON STARTUP
+# ==========================================
+def seed_database():
+    """Create tables and seed initial data if empty."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute('''CREATE TABLE IF NOT EXISTS nodes (
+            name TEXT PRIMARY KEY, floor INTEGER DEFAULT 1, description TEXT,
+            lat REAL DEFAULT 0.0, lng REAL DEFAULT 0.0,
+            occupancy_status TEXT DEFAULT 'UNVERIFIED',
+            last_verified TEXT DEFAULT 'Never', image_url TEXT,
+            camera_url TEXT DEFAULT NULL)''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_from TEXT, node_to TEXT, distance_meters REAL,
+            FOREIGN KEY(node_from) REFERENCES nodes(name),
+            FOREIGN KEY(node_to) REFERENCES nodes(name))''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS timetable (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            course_code TEXT, course_name TEXT, day_of_week TEXT,
+            start_time TEXT, end_time TEXT, venue TEXT)''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS students (
+            reg_no TEXT PRIMARY KEY, password TEXT NOT NULL,
+            course TEXT NOT NULL, year INTEGER NOT NULL,
+            semester INTEGER NOT NULL, units TEXT NOT NULL)''')
+        
+        if cur.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0:
+            nodes = [
+                ("Forensic laboratory", -1.045600, 37.012300, 1, "Main laboratory"),
+                ("Vice chancellors office", -1.046100, 37.012800, 1, "Admin Block"),
+                ("BS/2", -0.092969, 37.989887, 1, "Hub"), ("Main Gate Junction", -1.045000, 37.011500, 1, "Entry"),
+                ("UTC 9", -0.090023, 37.987475, 1, "Lecture"), ("STB 2", -0.090755, 37.989205, 1, "Lecture"),
+                ("ED 7", -0.090617, 37.989997, 1, "Lecture"), ("TC 1", -0.092325, 37.989829, 1, "Lecture"),
+                ("Bs/1", -0.092576, 37.990462, 1, "Lecture"), ("Hospitality lab", -0.092770, 37.991091, 1, "Lab"),
+                ("Forensic laboratory (Old Location)", -0.092555, 37.990695, 1, "Lab"), ("Bs/3", -0.093857, 37.991478, 1, "Lecture"),
+            ]
+            for n in nodes:
+                cur.execute("INSERT OR IGNORE INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified) VALUES (?,?,?,?,?,'UNVERIFIED','Never')", n)
+            print(f"Seeded {len(nodes)} nodes")
+        
+        if cur.execute("SELECT COUNT(*) FROM edges").fetchone()[0] == 0:
+            edges = [
+                ("UTC 9", "UTC 7", 30), ("STB 2", "ED 7", 90), ("ED 7", "Bs/1", 210),
+                ("Bs/1", "Forensic laboratory (Old Location)", 45), ("Bs/1", "TC 1", 76),
+                ("TC 1", "BS/2", 80), ("BS/2", "Bs/3", 205),
+                ("Main Gate Junction", "Forensic laboratory", 96),
+                ("Forensic laboratory", "Vice chancellors office", 120),
+                ("Main Gate Junction", "Vice chancellors office", 150),
+            ]
+            for f, t, d in edges:
+                cur.execute("INSERT INTO edges (node_from, node_to, distance_meters) VALUES (?,?,?)", (f, t, d))
+            print(f"Seeded {len(edges)} edges")
+        
+        conn.commit()
+        print(f"DB ready: {cur.execute('SELECT COUNT(*) FROM nodes').fetchone()[0]} nodes, {cur.execute('SELECT COUNT(*) FROM edges').fetchone()[0]} edges")
+
+seed_database()
+
+
 # 3. Pydantic Models for Incoming Data Validation
 class VerificationRequest(BaseModel):
     venue: str

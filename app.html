@@ -310,7 +310,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
-        const API_URL = 'http://127.0.0.1:8000';
+        // Auto-detect API URL - works for localhost and deployed (Render/etc.)
+        const API_URL = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
         let map = null;
         let routeLine = null;
         let userMarker = null;

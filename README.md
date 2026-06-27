@@ -1,6 +1,8 @@
 # Smart Campus Matrix
 
-Smart Campus Matrix is a campus-navigation and room-status app built with a **FastAPI** backend, **SQLite** database, and a mobile-style static frontend (`app.html`).
+Smart Campus Matrix is a campus-navigation and room-status app built with a **FastAPI** backend, **SQLite** database, and a **Progressive Web App (PWA)** frontend that can be installed on Android phones.
+
+> **Now a PWA!** Install it on your Android phone like a native app.
 
 ---
 
@@ -10,10 +12,11 @@ Smart Campus Matrix is a campus-navigation and room-status app built with a **Fa
 - **Search Bar** — Filter rooms by name, status, or schedule text on the dashboard
 - **Filter Buttons** — Quick filter: All, Scheduled, Occupied, Empty
 - **Campus Map & Navigation** — Leaflet-based interactive map with GPS tracking and route planning between campus nodes
-- **CCTV Live View** — Supports HLS (.m3u8), RTSP (VLC), YouTube Live, and HTTP streams per room
+- **CCTV Live View** — Supports HLS (.m3u8), RTSP (VLC), MJPEG (IP Webcam), YouTube Live, and HTTP streams per room
 - **Student Portal** — Registration, login, personal schedule lookup
 - **Admin Panel** — Room override controls, timetable management (PDF upload + manual entry), campus node manager (add/delete nodes, set CCTV URLs)
 - **Timetable Parser** — Upload any PDF timetable; the system auto-detects day columns, time slots, course codes, and venues
+- **PWA Ready** — Install on Android as a standalone app, works with GPS and CCTV from your phone
 
 ---
 
@@ -25,9 +28,7 @@ Smart Campus Matrix is a campus-navigation and room-status app built with a **Fa
 
 ---
 
-## Quick Start (One-Command Setup)
-
-From the repository root:
+## Quick Start (Local Development)
 
 ```powershell
 # 1. Clone the repo
@@ -45,47 +46,36 @@ pip install -r requirements.txt
 python setup_and_run.py
 ```
 
-This single command will:
-- Create all required database tables (nodes, edges, timetable, students)
-- Seed the campus map with 28 nodes and 31 pathway edges (if first run)
-- Start the FastAPI server on `http://127.0.0.1:8000`
-
 Then open **`app.html`** in your browser.
 
 ---
 
-## Manual Setup (Step by Step)
+## Installing on Android (PWA)
 
-### 1. Install Dependencies
+The app is now a **Progressive Web App**. To install it on your Android phone:
 
-```powershell
-pip install -r requirements.txt
-```
+### Step 1: Host the Backend Online
+The backend must be accessible from your phone. You can:
 
-### 2. Initialize the Database
+**Option A: Free Cloud Hosting (Recommended)**
+- Deploy `main.py` to [Render.com](https://render.com), [PythonAnywhere](https://pythonanywhere.com), or [Railway.app](https://railway.app)
+- These services offer free tiers that can run the FastAPI backend 24/7
 
-```powershell
-python setup_and_run.py
-```
+**Option B: Local Network (for testing)**
+- Find your PC's local IP: Run `ipconfig` and look for `IPv4 Address` (e.g., `192.168.1.100`)
+- Start the server: `uvicorn main:app --host 0.0.0.0 --port 8000`
+- Update `API_URL` in `app.html` to your PC's IP: `http://192.168.1.100:8000`
+- Connect your phone to the same WiFi network
 
-Or run the individual scripts:
+### Step 2: Open the App on Your Phone
+- Open Chrome on your Android phone
+- Navigate to the app URL (your hosted backend or local IP)
+- Chrome will show an **"Add to Home Screen"** banner
+- Tap it — the app installs like a native app!
 
-```powershell
-python database_setup.py          # Create tables
-python create_students_table.py   # Ensure students table exists
-python seed_campus_map.py         # Seed nodes & edges (optional, refreshes data)
-```
-
-### 3. Start the Backend Server
-
-```powershell
-set ADMIN_PASSWORD=Campus@123
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-### 4. Open the Frontend
-
-Open **`app.html`** in any modern browser (Chrome, Edge, Firefox).
+### Step 3: Using GPS & CCTV
+- GPS works automatically when you grant location permission
+- CCTV (IP Webcam): Install IP Webcam app on another phone, start the server, enter the MJPEG URL (e.g., `http://192.168.1.101:8080/video`) in the Admin panel's Node Manager
 
 ---
 
@@ -95,7 +85,7 @@ Open **`app.html`** in any modern browser (Chrome, Edge, Firefox).
 - View all rooms with live status (AVAILABLE / BUSY)
 - **Search bar** — type any room name, status, or schedule keyword
 - **Filter buttons** — All / Scheduled / Occupied / Empty
-- Click **"📹 Live CCTV"** on any room card to view its camera feed (if configured)
+- Click **"Live CCTV"** on any room card to view its camera feed (if configured)
 
 ### Map Routes
 - Navigate to the **Map** tab from the bottom nav
@@ -130,17 +120,8 @@ Open **`app.html`** in any modern browser (Chrome, Edge, Firefox).
 | POST | `/verify` | Set room occupancy status (admin override) |
 | POST | `/rooms/reset` | Reset all room overrides |
 | POST | `/navigate` | Calculate shortest path between two nodes |
-| POST | `/admin/timetable/upload-pdf` | Upload & parse a PDF timetable |
-| GET | `/admin/timetable/all` | View all timetable entries |
-| POST | `/admin/timetable/add` | Add a timetable entry |
-| PUT | `/admin/timetable/update/{id}` | Update a timetable entry |
-| DELETE | `/admin/timetable/delete/{id}` | Delete a timetable entry |
-| DELETE | `/admin/timetable/clear` | Clear all timetable entries |
-| GET | `/admin/nodes/all` | View all campus nodes |
-| POST | `/admin/nodes/add` | Add a new campus node |
-| PUT | `/admin/nodes/update/{name}` | Update a node |
-| DELETE | `/admin/nodes/delete/{name}` | Delete a node |
-| POST | `/admin/nodes/camera/{name}` | Set CCTV camera URL for a node |
+
+...and more admin endpoints for timetable and node management.
 
 ---
 
@@ -149,12 +130,13 @@ Open **`app.html`** in any modern browser (Chrome, Edge, Firefox).
 | File | Description |
 |------|-------------|
 | `main.py` | FastAPI backend — all API routes and business logic |
-| `app.html` | Single-page frontend (mobile-style UI) |
+| `app.html` | PWA frontend (installable on Android) |
 | `setup_and_run.py` | One-command setup: creates DB tables, seeds data, starts server |
+| `static/manifest.json` | PWA manifest (name, icons, theme, display mode) |
+| `static/sw.js` | Service worker (offline support, caching) |
+| `static/icons/` | PWA app icons (192x192, 512x512) |
 | `seed_campus_map.py` | Seeds campus nodes (28 locations) and edges (31 pathways) |
 | `database_setup.py` | Creates the required database tables |
-| `create_students_table.py` | Ensures the students table exists |
-| `cctv_fix.py` | Reference file for CCTV/HLS integration |
 | `requirements.txt` | Python dependencies |
 | `campus_navigation.db` | SQLite database (auto-created) |
 
@@ -163,16 +145,9 @@ Open **`app.html`** in any modern browser (Chrome, Edge, Firefox).
 ## Troubleshooting
 
 - **"No such table" error** — Run `python setup_and_run.py` or `python database_setup.py` to create missing tables.
-- **Frontend can't reach backend** — Confirm the API is running on `http://127.0.0.1:8000`. Check the server terminal for errors.
+- **Frontend can't reach backend** — Confirm the API is running on the correct URL. Check the server terminal for errors.
+- **PWA not installing** — The app must be served via HTTP/HTTPS (not `file://`). Host it online or use a local server.
 - **Map not loading** — Ensure you have internet access (Leaflet tiles are loaded from OpenStreetMap).
 - **GPS not working** — The app falls back to a default campus location if GPS is unavailable or outside campus range.
 - **Admin password** — Default is `Campus@123`. Override with `set ADMIN_PASSWORD=yourpassword` before starting the server.
-- **PDF upload fails** — Check the server terminal for parsing details. The PDF must contain a table with day names (Monday-Saturday) and time ranges (e.g., "08:00-10:00").
-
----
-
-## Notes
-
-- Run all commands from the repository root so the app opens the correct `campus_navigation.db` file.
-- The frontend uses browser geolocation and Leaflet tiles, so it works best with internet access enabled.
-- CCTV supports: HLS streams (`.m3u8`), RTSP (opens in VLC), YouTube Live, and generic HTTP/HTTPS embed URLs.
+- **CCTV not loading (IP Webcam)** — Use the MJPEG URL format: `http://[phone-ip]:8080/video`. Both devices must be on the same network.

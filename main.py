@@ -68,13 +68,18 @@ def seed_database():
         
         if cur.execute("SELECT COUNT(*) FROM nodes").fetchone()[0] == 0:
             nodes = [
-                ("Forensic laboratory", -1.045600, 37.012300, 1, "Main laboratory"),
-                ("Vice chancellors office", -1.046100, 37.012800, 1, "Admin Block"),
-                ("BS/2", -0.092969, 37.989887, 1, "Hub"), ("Main Gate Junction", -1.045000, 37.011500, 1, "Entry"),
-                ("UTC 9", -0.090023, 37.987475, 1, "Lecture"), ("STB 2", -0.090755, 37.989205, 1, "Lecture"),
-                ("ED 7", -0.090617, 37.989997, 1, "Lecture"), ("TC 1", -0.092325, 37.989829, 1, "Lecture"),
-                ("Bs/1", -0.092576, 37.990462, 1, "Lecture"), ("Hospitality lab", -0.092770, 37.991091, 1, "Lab"),
-                ("Forensic laboratory (Old Location)", -0.092555, 37.990695, 1, "Lab"), ("Bs/3", -0.093857, 37.991478, 1, "Lecture"),
+                ("Forensic laboratory", 1, "Main laboratory", -1.045600, 37.012300),
+                ("Vice chancellors office", 1, "Admin Block", -1.046100, 37.012800),
+                ("BS/2", 1, "Hub", -0.092969, 37.989887),
+                ("Main Gate Junction", 1, "Entry", -1.045000, 37.011500),
+                ("UTC 9", 1, "Lecture", -0.090023, 37.987475),
+                ("STB 2", 1, "Lecture", -0.090755, 37.989205),
+                ("ED 7", 1, "Lecture", -0.090617, 37.989997),
+                ("TC 1", 1, "Lecture", -0.092325, 37.989829),
+                ("Bs/1", 1, "Lecture", -0.092576, 37.990462),
+                ("Hospitality lab", 1, "Lab", -0.092770, 37.991091),
+                ("Forensic laboratory (Old Location)", 1, "Lab", -0.092555, 37.990695),
+                ("Bs/3", 1, "Lecture", -0.093857, 37.991478),
             ]
             for n in nodes:
                 cur.execute("INSERT OR IGNORE INTO nodes (name, floor, description, lat, lng, occupancy_status, last_verified) VALUES (?,?,?,?,?,'UNVERIFIED','Never')", n)

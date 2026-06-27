@@ -2,7 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0c1e3d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Campus Matrix">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Smart Campus Matrix">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <title>Smart Campus Matrix</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -961,6 +971,19 @@
                 if (response.ok) { alert('All timetable entries cleared!'); document.getElementById('timetable-entries-container').innerHTML = ''; fetchRoomStatus(); }
                 else { alert('Error: ' + (data.detail || 'Clear failed')); }
             } catch (err) { alert('Connection error: ' + err.message); }
+        }
+
+        // ==========================================
+        // 📲 PWA SERVICE WORKER REGISTRATION
+        // ==========================================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').then(reg => {
+                    console.log('SW registered:', reg.scope);
+                }).catch(err => {
+                    console.log('SW registration failed:', err);
+                });
+            });
         }
 
         window.onload = () => { fetchRoomStatus(); setInterval(fetchRoomStatus, 8000); };

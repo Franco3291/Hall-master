@@ -12,8 +12,16 @@ import sqlite3
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Campus@123')
 
+from starlette.responses import FileResponse
+
 # 1. Initialize the FastAPI application instance
 app = FastAPI()
+
+
+@app.get("/")
+def serve_frontend():
+    """Serve the main frontend application."""
+    return FileResponse("app.html")
 
 # 2. Enable CORS so app.html can communicate with this backend smoothly
 app.add_middleware(

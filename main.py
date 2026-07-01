@@ -10,7 +10,8 @@ from contextlib import contextmanager
 import shutil
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Campus@123')
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///campus_navigation.db')
+# Use Supabase PostgreSQL by default. To use local SQLite, set DATABASE_URL=sqlite:///campus_navigation.db
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:Campus@123@db.ztkscdzqnzhyddpdpcsg.supabase.co:5432/postgres')
 USE_POSTGRES = DATABASE_URL.startswith('postgres')
 
 from starlette.responses import FileResponse

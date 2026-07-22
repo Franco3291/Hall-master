@@ -31,22 +31,16 @@ Smart Campus Matrix is a campus-navigation and room-status app built with a **Fa
 ## Quick Start (Local Development)
 
 ```powershell
-# 1. Clone the repo
-git clone https://github.com/Franco3291/Hall-master.git
-cd Hall-master
-
-# 2. (Optional) Create a virtual environment
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# 3. Install dependencies
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run everything (database setup + server start)
-python setup_and_run.py
+# 2. Start the server (database is auto-setup on first run)
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Then open **`app.html`** in your browser.
+Then open **http://127.0.0.1:8000** in your browser.
+
+If you want to use it on your phone, find your PC's local IP with `ipconfig` and open `http://YOUR_IP:8000` on your phone (must be on the same WiFi network).
 
 ---
 
@@ -69,9 +63,13 @@ The backend must be accessible from your phone. You can:
 
 ### Step 2: Open the App on Your Phone
 - Open Chrome on your Android phone
-- Navigate to the app URL (your hosted backend or local IP)
+- Navigate to the app URL shown by `setup_and_run.py` or your hosted backend URL
 - Chrome will show an **"Add to Home Screen"** banner
 - Tap it — the app installs like a native app!
+
+### Step 2b: Use It Like a Mobile App
+- After installation, open it from the home screen icon
+- The app runs in standalone mode and keeps the phone-friendly layout
 
 ### Step 3: Using GPS & CCTV
 - GPS works automatically when you grant location permission
@@ -98,7 +96,18 @@ The backend must be accessible from your phone. You can:
 - **Login as Student** — view your personal class schedule
 
 ### Admin Panel
-- Login as Admin (password: `Campus@123`)
+- Login as Admin using your username and password
+- If you need to create an admin account, use one of these 4-digit OTPs first:
+	- `1024`
+	- `2048`
+	- `3141`
+	- `4286`
+	- `5369`
+	- `6420`
+	- `7531`
+	- `8642`
+	- `9753`
+	- `1089`
 - **Room Override** — manually set rooms ACTIVE or INACTIVE
 - **Timetable Management** — upload a PDF timetable or add entries manually
 - **Campus Node Manager** — add/delete nodes, set CCTV camera URLs for each room
@@ -149,5 +158,5 @@ The backend must be accessible from your phone. You can:
 - **PWA not installing** — The app must be served via HTTP/HTTPS (not `file://`). Host it online or use a local server.
 - **Map not loading** — Ensure you have internet access (Leaflet tiles are loaded from OpenStreetMap).
 - **GPS not working** — The app falls back to a default campus location if GPS is unavailable or outside campus range.
-- **Admin password** — Default is `Campus@123`. Override with `set ADMIN_PASSWORD=yourpassword` before starting the server.
+- **Admin login** — Default shared admin login is `admin` / `Campus@123`. You can also create OTP-gated admin accounts using the 4-digit codes listed in the Admin Panel section.
 - **CCTV not loading (IP Webcam)** — Use the MJPEG URL format: `http://[phone-ip]:8080/video`. Both devices must be on the same network.

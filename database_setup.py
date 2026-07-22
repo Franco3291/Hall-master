@@ -42,6 +42,15 @@ def init_database():
             venue TEXT
         )
     ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS venues (
+            code TEXT PRIMARY KEY,
+            venue_name TEXT NOT NULL,
+            building_type TEXT NOT NULL,
+            capacity INTEGER NOT NULL
+        )
+    ''')
     
     conn.commit()
     conn.close()

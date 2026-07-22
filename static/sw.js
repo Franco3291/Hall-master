@@ -1,6 +1,7 @@
 const CACHE_NAME = 'campus-matrix-v1';
 const ASSETS_TO_CACHE = [
   '/app.html',
+  '/static/logo.png',
   '/static/manifest.json',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',

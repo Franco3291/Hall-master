@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import sys
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
@@ -10,9 +11,114 @@ from contextlib import contextmanager
 import shutil
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Campus@123')
-# Use Supabase PostgreSQL by default. To use local SQLite, set DATABASE_URL=sqlite:///campus_navigation.db
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:Campus@123@db.ztkscdzqnzhyddpdpcsg.supabase.co:5432/postgres')
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+# Use local SQLite by default. Set DATABASE_URL to a PostgreSQL URL when deploying.
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///campus_navigation.db')
 USE_POSTGRES = DATABASE_URL.startswith('postgres')
+
+def load_admin_otp_codes():
+    try:
+        with open(os.path.join('static', 'admin_otp_codes.json'), 'r', encoding='utf-8') as f:
+            codes = json.load(f)
+        return [str(code).strip() for code in codes if str(code).strip()]
+    except Exception:
+        return ['1024', '2048', '3141', '4286', '5369', '6420', '7531', '8642', '9753', '1089']
+
+
+ADMIN_OTP_CODES = load_admin_otp_codes()
+ADMIN_OTP_CODE_SET = set(ADMIN_OTP_CODES)
+
+VENUE_DEFINITIONS = [
+    ('STB1', 'Science Tuition Block 1', 'STB', 300),
+    ('STB2', 'Science Tuition Block 2', 'STB', 75),
+    ('STB3', 'Science Tuition Block 3', 'STB', 75),
+    ('STB4', 'Science Tuition Block 4', 'STB', 75),
+    ('STB5', 'Science Tuition Block 5', 'STB', 75),
+    ('STB6', 'Science Tuition Block 6', 'STB', 75),
+    ('STB7', 'Science Tuition Block 7', 'STB', 75),
+    ('STB8', 'Science Tuition Block 8', 'STB', 75),
+    ('STB9', 'Science Tuition Block 9', 'STB', 75),
+    ('ED1', 'Education Building 1', 'ED', 70),
+    ('ED2', 'Education Building 2', 'ED', 70),
+    ('ED3', 'Education Building 3', 'ED', 70),
+    ('ED4', 'Education Building 4', 'ED', 70),
+    ('ED5', 'Education Building 5', 'ED', 70),
+    ('ED6', 'Education Building 6', 'ED', 70),
+    ('BS1', 'Business Studies 1', 'BS', 70),
+    ('BS2', 'Business Studies 2', 'BS', 70),
+    ('BS3', 'Business Studies 3', 'BS', 70),
+    ('BS4', 'Business Studies 4', 'BS', 70),
+    ('BS5', 'Business Studies 5', 'BS', 70),
+    ('TC1', 'Teaching Complex 1', 'TC', 150),
+    ('TC2', 'Teaching Complex 2', 'TC', 150),
+    ('TC3', 'Teaching Complex 3', 'TC', 150),
+    ('TC4', 'Teaching Complex 4', 'TC', 150),
+    ('TC5', 'Teaching Complex 5', 'TC', 150),
+    ('TC6', 'Teaching Complex 6', 'TC', 150),
+    ('TC7', 'Teaching Complex 7', 'TC', 150),
+    ('TC8', 'Teaching Complex 8', 'TC', 150),
+    ('TC9', 'Teaching Complex 9', 'TC', 150),
+    ('TC10', 'Teaching Complex 10', 'TC', 150),
+    ('TC11', 'Teaching Complex 11', 'TC', 150),
+    ('UTC1', 'University Technology Center 1', 'UTC', 300),
+    ('UTC2', 'University Technology Center 2', 'UTC', 150),
+    ('UTC3', 'University Technology Center 3', 'UTC', 150),
+    ('UTC4', 'University Technology Center 4', 'UTC', 150),
+    ('UTC5', 'University Technology Center 5', 'UTC', 150),
+    ('UTC6', 'University Technology Center 6', 'UTC', 150),
+    ('UTC7', 'University Technology Center 7', 'UTC', 150),
+    ('UTC8', 'University Technology Center 8', 'UTC', 150),
+    ('UTC9', 'University Technology Center 9', 'UTC', 150),
+    ('UTC10', 'University Technology Center 10', 'UTC', 150),
+    ('UTC11', 'University Technology Center 11', 'UTC', 150),
+    ('UTC12', 'University Technology Center 12', 'UTC', 150),
+    ('UTC13', 'University Technology Center 13', 'UTC', 150),
+    ('UTC14', 'University Technology Center 14', 'UTC', 150),
+]
+
+
+def normalize_venue_key(value: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '', str(value).lower()) if value else ''
+
+
+VENUE_ALIAS_LOOKUP = sorted(
+    [(normalize_venue_key(alias), capacity) for code, name, _, capacity in VENUE_DEFINITIONS for alias in (code, name)],
+    key=lambda item: len(item[0]),
+    reverse=True,
+)
+
+
+def find_venue_capacity(venue_name: str):
+    normalized = normalize_venue_key(venue_name)
+    if not normalized:
+        return None
+    for alias, capacity in VENUE_ALIAS_LOOKUP:
+        if alias and alias in normalized:
+            return capacity
+    return None
+
+
+def seed_venue_registry(conn):
+    for code, venue_name, building_type, capacity in VENUE_DEFINITIONS:
+        if USE_POSTGRES:
+            execute(
+                conn,
+                """
+                INSERT INTO venues (code, venue_name, building_type, capacity)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (code) DO UPDATE SET
+                    venue_name = EXCLUDED.venue_name,
+                    building_type = EXCLUDED.building_type,
+                    capacity = EXCLUDED.capacity
+                """,
+                (code, venue_name, building_type, capacity),
+            )
+        else:
+            execute(
+                conn,
+                "INSERT OR REPLACE INTO venues (code, venue_name, building_type, capacity) VALUES (?, ?, ?, ?)",
+                (code, venue_name, building_type, capacity),
+            )
 
 from starlette.responses import FileResponse
 
@@ -124,6 +230,26 @@ def execute(conn, sql: str, params=None):
     return cur
 
 
+def admin_password_is_valid(conn, password: str) -> bool:
+    if not password:
+        return False
+    if password == ADMIN_PASSWORD:
+        return True
+    stmt = "SELECT 1 FROM admin_accounts WHERE admin_password = %s LIMIT 1" if USE_POSTGRES else "SELECT 1 FROM admin_accounts WHERE admin_password = ? LIMIT 1"
+    cur = execute(conn, stmt, (password,))
+    return cur.fetchone() is not None
+
+
+def admin_credentials_are_valid(conn, admin_name: str, admin_password: str) -> bool:
+    if not admin_name or not admin_password:
+        return False
+    if admin_name.strip().lower() == ADMIN_USERNAME.lower() and admin_password == ADMIN_PASSWORD:
+        return True
+    stmt = "SELECT 1 FROM admin_accounts WHERE admin_name = %s AND admin_password = %s LIMIT 1" if USE_POSTGRES else "SELECT 1 FROM admin_accounts WHERE admin_name = ? AND admin_password = ? LIMIT 1"
+    cur = execute(conn, stmt, (admin_name.strip(), admin_password))
+    return cur.fetchone() is not None
+
+
 # ==========================================
 # 🌱 AUTO-SEED DATABASE ON STARTUP
 # ==========================================
@@ -168,6 +294,14 @@ def seed_database():
                 )
             """)
             cur.execute("""
+                CREATE TABLE IF NOT EXISTS venues (
+                    code TEXT PRIMARY KEY,
+                    venue_name TEXT NOT NULL,
+                    building_type TEXT NOT NULL,
+                    capacity INTEGER NOT NULL
+                )
+            """)
+            cur.execute("""
                 CREATE TABLE IF NOT EXISTS students (
                     reg_no TEXT PRIMARY KEY,
                     password TEXT NOT NULL,
@@ -175,6 +309,14 @@ def seed_database():
                     year INTEGER NOT NULL,
                     semester INTEGER NOT NULL,
                     units TEXT NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin_accounts (
+                    id SERIAL PRIMARY KEY,
+                    admin_name TEXT NOT NULL,
+                    admin_password TEXT NOT NULL UNIQUE,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
         else:
@@ -193,11 +335,29 @@ def seed_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 course_code TEXT, course_name TEXT, day_of_week TEXT,
                 start_time TEXT, end_time TEXT, venue TEXT)''')
+            cur.execute('''CREATE TABLE IF NOT EXISTS venues (
+                code TEXT PRIMARY KEY,
+                venue_name TEXT NOT NULL,
+                building_type TEXT NOT NULL,
+                capacity INTEGER NOT NULL)''')
             cur.execute('''CREATE TABLE IF NOT EXISTS students (
                 reg_no TEXT PRIMARY KEY, password TEXT NOT NULL,
                 course TEXT NOT NULL, year INTEGER NOT NULL,
                 semester INTEGER NOT NULL, units TEXT NOT NULL)''')
+            cur.execute('''CREATE TABLE IF NOT EXISTS admin_accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_name TEXT NOT NULL,
+                admin_password TEXT NOT NULL UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
 
+        conn.commit()
+
+        # Remove the Vice Chancellors Office everywhere so it does not keep
+        # reappearing as a room or map node after restarts.
+        cleanup_name = "Vice chancellors office"
+        execute(conn, "DELETE FROM edges WHERE node_from = %s OR node_to = %s" if USE_POSTGRES else "DELETE FROM edges WHERE node_from = ? OR node_to = ?", (cleanup_name, cleanup_name))
+        execute(conn, "DELETE FROM timetable WHERE venue = %s" if USE_POSTGRES else "DELETE FROM timetable WHERE venue = ?", (cleanup_name,))
+        execute(conn, "DELETE FROM nodes WHERE name = %s" if USE_POSTGRES else "DELETE FROM nodes WHERE name = ?", (cleanup_name,))
         conn.commit()
 
         cur.execute("SELECT COUNT(*) FROM nodes")
@@ -206,7 +366,6 @@ def seed_database():
         if node_count == 0:
             nodes = [
                 ("Forensic laboratory", 1, "Main laboratory", -1.045600, 37.012300),
-                ("Vice chancellors office", 1, "Admin Block", -1.046100, 37.012800),
                 ("BS/2", 1, "Hub", -0.092969, 37.989887),
                 ("Main Gate Junction", 1, "Entry", -1.045000, 37.011500),
                 ("UTC 9", 1, "Lecture", -0.090023, 37.987475),
@@ -234,8 +393,6 @@ def seed_database():
                 ("Bs/1", "Forensic laboratory (Old Location)", 45), ("Bs/1", "TC 1", 76),
                 ("TC 1", "BS/2", 80), ("BS/2", "Bs/3", 205),
                 ("Main Gate Junction", "Forensic laboratory", 96),
-                ("Forensic laboratory", "Vice chancellors office", 120),
-                ("Main Gate Junction", "Vice chancellors office", 150),
             ]
             for f, t, d in edges:
                 if USE_POSTGRES:
@@ -244,13 +401,17 @@ def seed_database():
                     cur.execute("INSERT INTO edges (node_from, node_to, distance_meters) VALUES (?,?,?)", (f, t, d))
             print(f"Seeded {len(edges)} edges")
 
+        seed_venue_registry(conn)
+
         conn.commit()
 
         cur.execute("SELECT COUNT(*) FROM nodes")
         nc = cur.fetchone()[0] if not USE_POSTGRES else cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM edges")
         ec = cur.fetchone()[0] if not USE_POSTGRES else cur.fetchone()[0]
-        print(f"DB ready: {nc} nodes, {ec} edges")
+        cur.execute("SELECT COUNT(*) FROM venues")
+        vc = cur.fetchone()[0] if not USE_POSTGRES else cur.fetchone()[0]
+        print(f"DB ready: {nc} nodes, {ec} edges, {vc} venues")
 
 seed_database()
 
@@ -277,7 +438,13 @@ class StudentLoginRequest(BaseModel):
     password: str
 
 class AdminLoginRequest(BaseModel):
+    admin_name: str
     admin_password: str
+
+class AdminRegisterRequest(BaseModel):
+    admin_name: str
+    admin_password: str
+    otp: str
 
 class TimetableEntry(BaseModel):
     course_code: str
@@ -343,6 +510,7 @@ def get_room_status():
         for venue_name in all_venue_names:
             if not venue_name:
                 continue
+            capacity = find_venue_capacity(venue_name)
 
             cur = execute(conn, """
                 SELECT course_code, course_name, end_time 
@@ -398,11 +566,24 @@ def get_room_status():
 
             rooms_status_feed.append({
                 "venue": venue_name,
+                "capacity": capacity,
                 "status": status,
                 "current_schedule": schedule_text,
                 "last_verified": time_verified
             })
         return rooms_status_feed
+
+
+@app.get("/api/venues")
+def get_venue_registry():
+    with get_db() as conn:
+        rows = execute(conn, "SELECT code, venue_name, building_type, capacity FROM venues ORDER BY code").fetchall()
+        if USE_POSTGRES:
+            return [
+                {"code": row[0], "venue_name": row[1], "building_type": row[2], "capacity": row[3]}
+                for row in rows
+            ]
+        return [dict(row) for row in rows]
 
 
 # ==========================================
@@ -463,9 +644,39 @@ def login_student(req: StudentLoginRequest):
 
 @app.post("/admin/login")
 def login_admin(req: AdminLoginRequest):
-    if req.admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_credentials_are_valid(conn, req.admin_name, req.admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     return {"status": "success", "message": "Admin authenticated."}
+
+
+@app.post("/admin/register")
+def register_admin(req: AdminRegisterRequest):
+    otp = req.otp.strip()
+    if otp not in ADMIN_OTP_CODE_SET:
+        raise HTTPException(status_code=401, detail="Invalid OTP.")
+    admin_name = req.admin_name.strip()
+    admin_password = req.admin_password.strip()
+    if not admin_name or not admin_password:
+        raise HTTPException(status_code=400, detail="Admin name and password are required.")
+    if len(admin_password) < 4:
+        raise HTTPException(status_code=400, detail="Admin password must be at least 4 characters.")
+
+    with get_db() as conn:
+        if admin_password == ADMIN_PASSWORD:
+            raise HTTPException(status_code=400, detail="Choose a password different from the shared admin password.")
+        existing = execute(conn, "SELECT 1 FROM admin_accounts WHERE admin_password = %s LIMIT 1" if USE_POSTGRES else "SELECT 1 FROM admin_accounts WHERE admin_password = ? LIMIT 1", (admin_password,)).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail="That admin password is already in use.")
+        stmt = "INSERT INTO admin_accounts (admin_name, admin_password) VALUES (%s, %s)" if USE_POSTGRES else "INSERT INTO admin_accounts (admin_name, admin_password) VALUES (?, ?)"
+        execute(conn, stmt, (admin_name, admin_password))
+        conn.commit()
+    return {"status": "success", "message": "Admin account created."}
+
+
+@app.get("/admin/otp-codes")
+def get_admin_otp_codes():
+    return {"codes": ADMIN_OTP_CODES}
 
 
 # ==========================================
@@ -677,8 +888,9 @@ def navigate(req: NavigationRequest):
 @app.post("/admin/timetable/upload-pdf")
 async def upload_timetable_pdf(admin_password: str = Form(...), file: UploadFile = File(...)):
     """Upload any .pdf timetable."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
@@ -863,8 +1075,9 @@ async def upload_timetable_pdf(admin_password: str = Form(...), file: UploadFile
 @app.get("/admin/timetable/all")
 def get_all_timetable(admin_password: str = Query(...)):
     """Admin-only: Get all timetable entries."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         rows = execute(conn, """
@@ -880,8 +1093,9 @@ def get_all_timetable(admin_password: str = Query(...)):
 @app.post("/admin/timetable/add")
 def add_timetable_entry(admin_password: str = Query(...), entry: TimetableEntry = None):
     """Admin-only: Add a single timetable entry."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         stmt = "INSERT INTO timetable (course_code, course_name, day_of_week, start_time, end_time, venue) VALUES (%s, %s, %s, %s, %s, %s)" if USE_POSTGRES else "INSERT INTO timetable (course_code, course_name, day_of_week, start_time, end_time, venue) VALUES (?, ?, ?, ?, ?, ?)"
@@ -901,8 +1115,9 @@ def add_timetable_entry(admin_password: str = Query(...), entry: TimetableEntry 
 @app.put("/admin/timetable/update/{entry_id}")
 def update_timetable_entry(entry_id: int, admin_password: str = Query(...), entry: TimetableEntry = None):
     """Admin-only: Update a timetable entry by ID."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         cur = execute(conn, "SELECT id FROM timetable WHERE id = %s" if USE_POSTGRES else "SELECT id FROM timetable WHERE id = ?", (entry_id,))
@@ -921,8 +1136,9 @@ def update_timetable_entry(entry_id: int, admin_password: str = Query(...), entr
 @app.delete("/admin/timetable/delete/{entry_id}")
 def delete_timetable_entry(entry_id: int, admin_password: str = Query(...)):
     """Admin-only: Delete a timetable entry by ID."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         cur = execute(conn, "SELECT id FROM timetable WHERE id = %s" if USE_POSTGRES else "SELECT id FROM timetable WHERE id = ?", (entry_id,))
@@ -940,8 +1156,9 @@ def delete_timetable_entry(entry_id: int, admin_password: str = Query(...)):
 @app.get("/admin/timetable/venues")
 def get_all_venues(admin_password: str = Query(...)):
     """Admin-only: Get list of unique venues."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         venues = execute(conn, "SELECT DISTINCT venue FROM timetable ORDER BY venue").fetchall()
@@ -954,8 +1171,9 @@ def get_all_venues(admin_password: str = Query(...)):
 @app.delete("/admin/timetable/clear")
 def clear_timetable(admin_password: str = Query(...)):
     """Admin-only: Clear all timetable entries."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
 
     with get_db() as conn:
         execute(conn, "DELETE FROM timetable")
@@ -1046,8 +1264,9 @@ def get_available_units(course: str = Query(""), year: int = Query(0), semester:
 # ============================================================
 @app.get("/admin/nodes/all")
 def get_all_nodes(admin_password: str = Query(...)):
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     with get_db() as conn:
         rows = execute(conn, "SELECT name, lat, lng, floor, description, occupancy_status, camera_url FROM nodes ORDER BY name").fetchall()
         if USE_POSTGRES:
@@ -1056,8 +1275,9 @@ def get_all_nodes(admin_password: str = Query(...)):
 
 @app.post("/admin/nodes/add")
 def add_node(admin_password: str = Query(...), node: NodeAddRequest = None):
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     if not node.name or not node.name.strip():
         raise HTTPException(status_code=400, detail="Node name is required.")
     with get_db() as conn:
@@ -1072,8 +1292,9 @@ def add_node(admin_password: str = Query(...), node: NodeAddRequest = None):
 
 @app.delete("/admin/nodes/delete/{node_name}")
 def delete_node(node_name: str, admin_password: str = Query(...)):
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     with get_db() as conn:
         cur = execute(conn, "SELECT name FROM nodes WHERE name = %s" if USE_POSTGRES else "SELECT name FROM nodes WHERE name = ?", (node_name,))
         existing = cur.fetchone()
@@ -1086,8 +1307,9 @@ def delete_node(node_name: str, admin_password: str = Query(...)):
 
 @app.put("/admin/nodes/update/{node_name}")
 def update_node(node_name: str, admin_password: str = Query(...), node: NodeAddRequest = None):
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     with get_db() as conn:
         cur = execute(conn, "SELECT name FROM nodes WHERE name = %s" if USE_POSTGRES else "SELECT name FROM nodes WHERE name = ?", (node_name,))
         existing = cur.fetchone()
@@ -1105,8 +1327,9 @@ def update_node(node_name: str, admin_password: str = Query(...), node: NodeAddR
 @app.post("/admin/nodes/camera/{node_name}")
 def set_node_camera(node_name: str, admin_password: str = Query(...), req: SetCameraRequest = None):
     """Admin-only: Set/update the CCTV camera URL for a campus node."""
-    if admin_password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid admin password.")
+    with get_db() as conn:
+        if not admin_password_is_valid(conn, admin_password):
+            raise HTTPException(status_code=401, detail="Invalid admin password.")
     with get_db() as conn:
         cur = execute(conn, "SELECT name FROM nodes WHERE name = %s" if USE_POSTGRES else "SELECT name FROM nodes WHERE name = ?", (node_name,))
         existing = cur.fetchone()

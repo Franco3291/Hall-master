@@ -40,7 +40,6 @@ def seed_map_data():
     # 3. YOUR EXACT NODES
     campus_nodes = [
         ("Forensic laboratory", -1.045600, 37.012300, 1, "Main laboratory complex area"),
-        ("Vice chancellors office", -1.046100, 37.012800, 1, "Administration Block"),
         ("BS/2", -0.092969, 37.989887, 1, "Common Group Hub Point"),
         ("Main Gate Junction", -1.045000, 37.011500, 1, "Pedestrian Pathway split entry point"),
         ("UTC 9", -0.090023, 37.987475, 1, "Common Group"),
@@ -111,12 +110,9 @@ def seed_map_data():
         ("Bs/1", "TC 1", 75.8, "heading west towards the science block corner"),
         ("TC 1", "BS/2", 80.4, "straight access sidewalk down the line"),
         ("BS/2", "Bs/3", 205.0, "southern link route heading towards the field gate"),
-        ("Forensic laboratory (Old Location)", "Vice chancellors office", 120.0, "administration avenue corridor link"),
         
         # --- MAIN CAMPUS CLUSTER (~ -1.045 to -1.046) ---
         ("Main Gate Junction", "Forensic laboratory", 95.5, "main access entry road path segment"),
-        ("Forensic laboratory", "Vice chancellors office", 120.0, "administration avenue corridor link"),
-        ("Main Gate Junction", "Vice chancellors office", 150.0, "campus ring road path"),
     ]
 
     print(f"Connecting {len(campus_edges)} pathway edges...")

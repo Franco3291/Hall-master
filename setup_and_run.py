@@ -1,3 +1,4 @@
+import socket
 import sqlite3, os, sys, subprocess
 
 # 1. Initialize database tables
@@ -29,15 +30,28 @@ cur.execute('''CREATE TABLE IF NOT EXISTS students (
     course TEXT NOT NULL, year INTEGER NOT NULL,
     semester INTEGER NOT NULL, units TEXT NOT NULL)''')
 
+cur.execute('''CREATE TABLE IF NOT EXISTS admin_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_name TEXT NOT NULL,
+    admin_password TEXT NOT NULL UNIQUE,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+
 conn.commit()
 
 # 2. Check if nodes exist, if not seed them
+count = cur.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+
+# Remove the Vice Chancellors Office everywhere before seeding the map.
+cur.execute("DELETE FROM edges WHERE node_from = ? OR node_to = ?", ("Vice chancellors office", "Vice chancellors office"))
+cur.execute("DELETE FROM timetable WHERE venue = ?", ("Vice chancellors office",))
+cur.execute("DELETE FROM nodes WHERE name = ?", ("Vice chancellors office",))
+conn.commit()
+
 count = cur.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
 if count == 0:
     print("Seeding campus map nodes...")
     campus_nodes = [
         ("Forensic laboratory", -1.045600, 37.012300, 1, "Main laboratory"),
-        ("Vice chancellors office", -1.046100, 37.012800, 1, "Admin Block"),
         ("BS/2", -0.092969, 37.989887, 1, "Common Hub"),
         ("Main Gate Junction", -1.045000, 37.011500, 1, "Main Entry"),
         ("UTC 9", -0.090023, 37.987475, 1, "Lecture"),
@@ -67,4 +81,17 @@ print("\n=== Database ready! ===")
 # 4. Start server
 print("\nStarting FastAPI server...")
 os.environ['ADMIN_PASSWORD'] = 'Campus@123'
-subprocess.run([sys.executable, '-m', 'uvicorn', 'main:app', '--reload', '--host', '127.0.0.1', '--port', '8000'])
+
+def get_local_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+    except Exception:
+        return '127.0.0.1'
+
+local_ip = get_local_ip()
+print(f"\nOpen on this PC: http://127.0.0.1:8000")
+print(f"Open on your phone (same WiFi): http://{local_ip}:8000")
+
+subprocess.run([sys.executable, '-m', 'uvicorn', 'main:app', '--reload', '--host', '0.0.0.0', '--port', '8000'])

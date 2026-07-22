@@ -2,15 +2,42 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # Virtual Environments
 .venv/
 venv/
 ENV/
+env/
 
 # Databases
 *.db
+*.sqlite
+*.sqlite3
 
 # Data exports
 nodes.csv
 edges.csv
+
+# Uploaded files
+static/uploads/*
+!static/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+*.log

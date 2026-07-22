@@ -9,7 +9,9 @@
     <meta name="apple-mobile-web-app-title" content="Campus Matrix">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Smart Campus Matrix">
+    <meta property="og:image" content="/static/logo.png">
     <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
     <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
@@ -31,14 +33,14 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         html, body { 
             background-color: var(--primary-bg); 
-            height: 100%; 
+            height: 100dvh; 
             width: 100%;
             overflow: hidden;
         }
         .app-root { 
             width: 100%; 
-            height: 100%; 
-            max-height: 100vh;
+            height: 100dvh; 
+            max-height: 100dvh;
             background-color: var(--app-bg); 
             display: flex; 
             flex-direction: column; 
@@ -52,6 +54,25 @@
             text-align: center; 
             border-bottom: 1px solid rgba(255,255,255,0.1);
             flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header .header-left { text-align: left; flex: 1; }
+        header .header-right { text-align: right; flex-shrink: 0; }
+        .brand-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            object-fit: cover;
+            margin-right: 10px;
+            border: 1px solid rgba(255,255,255,0.18);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .brand-row {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         header h1 { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px; }
         header p { font-size: 0.7rem; opacity: 0.7; margin-top: 2px; }
@@ -113,7 +134,7 @@
             background: none; 
             border: none; 
             cursor: pointer; 
-            width: 20%; 
+            width: 25%; 
             height: 100%; 
             justify-content: center; 
             font-size: 0.65rem; 
@@ -125,44 +146,461 @@
         .filter-btn { padding: 8px 12px; background: #f1f5f9; color: var(--text-dark); border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
         .filter-btn:hover { background: #e2e8f0; }
         .filter-btn.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
-        .login-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 500; }
-        .login-card { background: white; border-radius: 20px; padding: 24px; width: 85%; max-width: 340px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-        .login-card h3 { margin-bottom: 16px; text-align: center; color: var(--text-dark); }
-        .login-card .btn-submit { margin-top: 4px; }
-        .btn-logout { padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.8rem; }
+        .btn-logout { padding: 8px 16px; background: #dc2626; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.75rem; }
+
+        /* ── Unified Login Overlay ── */
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0b1528 0%, #1a2a4a 50%, #0c1e3d 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            padding: 20px;
+        }
+        #login-overlay.hidden { display: none; }
+        .login-container {
+            width: 100%;
+            max-width: 380px;
+        }
+        .login-brand {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .login-brand .brand-icon {
+            font-size: 3rem;
+            color: #0284c7;
+            margin-bottom: 12px;
+        }
+        .login-brand h1 {
+            color: white;
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+        .login-brand p {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+        .login-card {
+            background: white;
+            border-radius: 24px;
+            padding: 28px 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .login-card .login-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .role-toggle {
+            display: flex;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+        .role-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+        .role-btn.active {
+            background: white;
+            color: var(--text-dark);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .role-btn i { margin-right: 6px; }
+        #login-error {
+            color: var(--busy-red);
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: 8px;
+            display: none;
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: 16px;
+        }
+        .login-footer a {
+            color: var(--accent-blue);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .login-footer a:hover { text-decoration: underline; }
+
+        /* ── Registration Form (inside login flow) ── */
+        #register-form { display: none; }
+        .back-link {
+            text-align: left;
+            margin-bottom: 12px;
+        }
+        .back-link a {
+            color: var(--accent-blue);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .back-link a:hover { text-decoration: underline; }
+        .login-card .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* ── Admin Dashboard Integration ── */
+        .admin-override-card {
+            background: #fef2f2;
+            border-left: 4px solid var(--busy-red);
+        }
+        .timetable-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @media (max-width: 640px) {
+            header {
+                padding: max(0.55rem, env(safe-area-inset-top)) 0.75rem 0.55rem 0.75rem;
+                gap: 8px;
+            }
+
+            .brand-logo {
+                width: 28px;
+                height: 28px;
+                margin-right: 8px;
+                border-radius: 8px;
+            }
+
+            header h1 {
+                font-size: 0.95rem;
+                letter-spacing: 0.2px;
+            }
+
+            header p {
+                font-size: 0.62rem;
+                margin-top: 1px;
+            }
+
+            .app-body {
+                padding-bottom: 56px;
+            }
+
+            .view-panel {
+                padding: 10px;
+            }
+
+            .section-title {
+                font-size: 0.78rem;
+                margin-bottom: 8px;
+            }
+
+            .room-card,
+            .schedule-card,
+            .search-box,
+            .login-card {
+                border-radius: 18px;
+            }
+
+            .room-card,
+            .schedule-card {
+                padding: 14px;
+                margin-bottom: 10px;
+                gap: 6px;
+            }
+
+            .login-container {
+                max-width: none;
+            }
+
+            .login-card {
+                padding: 22px 16px;
+            }
+
+            .login-brand {
+                margin-bottom: 18px;
+            }
+
+            .login-brand h1 {
+                font-size: 1.35rem;
+            }
+
+            .login-brand p {
+                font-size: 0.74rem;
+            }
+
+            .role-toggle {
+                margin-bottom: 16px;
+            }
+
+            .form-control,
+            select,
+            .btn-submit {
+                font-size: 0.95rem;
+            }
+
+            .btn-submit {
+                padding: 11px;
+            }
+
+            #map-container {
+                height: 220px;
+                border-radius: 16px;
+            }
+
+            .bottom-nav {
+                height: 56px;
+            }
+
+            .nav-item {
+                font-size: 0.58rem;
+                letter-spacing: 0.1px;
+            }
+
+            .nav-item i {
+                font-size: 1.05rem;
+            }
+
+            .search-box {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+
+            .input-wrap {
+                margin-bottom: 8px;
+            }
+
+            .step-entry {
+                font-size: 0.8rem;
+            }
+
+            .mobile-hero {
+                background: linear-gradient(135deg, #0c1e3d 0%, #12345e 100%);
+                color: white;
+                border-radius: 22px;
+                padding: 16px;
+                margin-bottom: 12px;
+                box-shadow: 0 14px 30px rgba(12, 30, 61, 0.16);
+            }
+
+            .mobile-hero-top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+
+            .mobile-hero-title {
+                font-size: 1rem;
+                font-weight: 800;
+                line-height: 1.2;
+                margin-bottom: 4px;
+            }
+
+            .mobile-hero-subtitle {
+                font-size: 0.78rem;
+                color: rgba(255, 255, 255, 0.75);
+                line-height: 1.4;
+            }
+
+            .mobile-quick-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+
+            .mobile-action-card {
+                background: white;
+                color: var(--text-dark);
+                border: 1px solid #dbe4f0;
+                border-radius: 18px;
+                padding: 14px 12px;
+                min-height: 86px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 6px;
+                text-align: left;
+                cursor: pointer;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+            }
+
+            .mobile-action-card i {
+                font-size: 1.1rem;
+                color: var(--accent-blue);
+            }
+
+            .mobile-action-title {
+                font-size: 0.88rem;
+                font-weight: 800;
+            }
+
+            .mobile-action-text {
+                font-size: 0.72rem;
+                color: var(--text-muted);
+                line-height: 1.3;
+            }
+
+            .mobile-status-strip {
+                display: flex;
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 2px;
+                margin-bottom: 12px;
+            }
+
+            .mobile-status-chip {
+                flex: 0 0 auto;
+                background: rgba(255, 255, 255, 0.14);
+                color: white;
+                border-radius: 999px;
+                padding: 8px 12px;
+                font-size: 0.72rem;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="app-root">
+
+        <!-- ═══ UNIFIED LOGIN OVERLAY ═══ -->
+        <div id="login-overlay">
+            <div class="login-container">
+                <div class="login-brand">
+                    <img class="brand-logo" src="/static/logo.png" alt="Smart Campus Matrix logo">
+                    <h1>Smart Campus Matrix</h1>
+                    <p>Timetable & Space Allocation Engine</p>
+                </div>
+
+                <!-- Login Card -->
+                <div id="login-form" class="login-card">
+                    <div class="login-title"><i class="fa-solid fa-right-to-bracket"></i> Sign In</div>
+
+                    <!-- Role Toggle -->
+                    <div class="role-toggle">
+                        <button class="role-btn active" id="role-student-btn" onclick="setLoginRole('student')">
+                            <i class="fa-solid fa-graduation-cap"></i> Student
+                        </button>
+                        <button class="role-btn" id="role-admin-btn" onclick="setLoginRole('admin')">
+                            <i class="fa-solid fa-user-shield"></i> Admin
+                        </button>
+                    </div>
+
+                    <!-- Student Fields -->
+                    <div id="login-student-fields">
+                        <div class="form-group">
+                            <label>Registration Number</label>
+                            <input type="text" id="login_reg_no" class="form-control" placeholder="e.g., EBST5/18557/25" autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="login_password" class="form-control" placeholder="Enter your password" autocomplete="current-password">
+                        </div>
+                    </div>
+
+                    <!-- Admin Fields -->
+                    <div id="login-admin-fields" style="display:none;">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" id="admin_login_name" class="form-control" placeholder="Enter admin username" autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" id="admin_password" class="form-control" placeholder="Enter admin password" autocomplete="current-password">
+                        </div>
+                    </div>
+
+                    <div id="login-error"></div>
+                    <button class="btn-submit" id="login-btn" onclick="handleLogin()">
+                        <i class="fa-solid fa-right-to-bracket"></i> <span id="login-btn-text">Sign In as Student</span>
+                    </button>
+
+                    <div class="login-footer">
+                        <a id="login-secondary-action" onclick="showRegisterForm()">
+                            <i class="fa-solid fa-user-plus"></i> Create Student Account
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Registration Card -->
+                <div id="register-form" class="login-card">
+                    <div class="back-link">
+                        <a onclick="showLoginForm()"><i class="fa-solid fa-arrow-left"></i> Back to Sign In</a>
+                    </div>
+                    <div class="login-title"><i class="fa-solid fa-user-plus"></i> Student Registration</div>
+                    <div class="form-group"><label>Registration Number</label><input type="text" id="reg_no" class="form-control" placeholder="e.g., EBST5/18557/25"></div>
+                    <div class="form-group"><label>Password</label><input type="password" id="password" class="form-control" placeholder="Choose a password"></div>
+                    <div class="form-group"><label>Course / Program</label><input type="text" id="course" class="form-control" placeholder="e.g., Computer Science" oninput="fetchAvailableUnits()"></div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="form-group" style="flex:1;"><label>Year</label><select id="year" class="form-control" onchange="fetchAvailableUnits()"><option value="">-- Select --</option><option value="1">Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option></select></div>
+                        <div class="form-group" style="flex:1;"><label>Semester</label><select id="semester" class="form-control" onchange="fetchAvailableUnits()"><option value="">-- Select --</option><option value="1">Sem 1</option><option value="2">Sem 2</option></select></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Enrolled Units</label>
+                        <div id="units-loading" style="font-size:0.8rem; color:var(--text-muted); display:none;">Loading...</div>
+                        <div id="units-container" style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#f8fafc;"><p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p></div>
+                        <input type="hidden" id="units" value="">
+                        <div id="selected-units-display" style="font-size:0.8rem; margin-top:6px; color:var(--accent-blue);"></div>
+                    </div>
+                    <div id="register-error" style="color:var(--busy-red); font-size:0.8rem; text-align:center; margin-top:8px; display:none;"></div>
+                    <button class="btn-submit" onclick="submitRegistration()"><i class="fa-solid fa-user-plus"></i> Complete Registration</button>
+                </div>
+
+                <!-- Admin Account Creation Card -->
+                <div id="admin-register-form" class="login-card" style="display:none;">
+                    <div class="back-link">
+                        <a onclick="showAdminLoginForm()"><i class="fa-solid fa-arrow-left"></i> Back to Admin Sign In</a>
+                    </div>
+                    <div class="login-title"><i class="fa-solid fa-shield-halved"></i> Admin Account Creation</div>
+                    <div class="form-group"><label>Admin Name</label><input type="text" id="admin_name" class="form-control" placeholder="e.g., ICT Admin"></div>
+                    <div class="form-group"><label>Admin Password</label><input type="password" id="admin_password_new" class="form-control" placeholder="Choose a password"></div>
+                    <div class="form-group"><label>4-digit OTP</label><input type="password" id="admin_otp" class="form-control" placeholder="Enter OTP from school admin" maxlength="4" inputmode="numeric"></div>
+                    <div id="admin-register-error" style="color:var(--busy-red); font-size:0.8rem; text-align:center; margin-top:8px; display:none;"></div>
+                    <button class="btn-submit" onclick="submitAdminRegistration()"><i class="fa-solid fa-user-shield"></i> Create Admin Account</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ APP HEADER ═══ -->
         <header>
-            <h1>Smart Campus Matrix</h1>
-            <p id="session-indicator"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
+            <div class="header-left">
+                <div class="brand-row">
+                    <img class="brand-logo" src="/static/logo.png" alt="Smart Campus Matrix logo">
+                    <div>
+                        <h1>Smart Campus Matrix</h1>
+                        <p id="session-indicator"><i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine</p>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right" id="header-actions" style="display:none;">
+                <button class="btn-logout" onclick="globalLogout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+            </div>
         </header>
+
         <div class="app-body">
-            <!-- Dashboard -->
+            <!-- Dashboard (Adapts based on role) -->
             <div id="panel-dashboard" class="view-panel active">
-                <div class="section-title">Live Space Allocations</div>
-                <div class="search-box" style="padding: 10px; margin-bottom: 12px;">
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-search"></i>
-                        <input type="text" id="room-search-input" class="form-control" placeholder="Search rooms..." oninput="handleRoomSearch()" style="padding-left: 36px;">
-                    </div>
-                </div>
-                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <button class="filter-btn active" onclick="filterRooms('all', event)" style="flex: 1; min-width: 70px;">All</button>
-                    <button class="filter-btn" onclick="filterRooms('scheduled', event)" style="flex: 1; min-width: 70px;">Scheduled</button>
-                    <button class="filter-btn" onclick="filterRooms('occupied', event)" style="flex: 1; min-width: 70px;">Occupied</button>
-                    <button class="filter-btn" onclick="filterRooms('empty', event)" style="flex: 1; min-width: 70px;">Empty</button>
-                </div>
-                <div id="rooms-list-container"></div>
-                <div id="cctv-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:none; justify-content:center; align-items:center;">
-                    <div style="position:relative; width:90%; max-width:500px;">
-                        <button onclick="closeCCTV()" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2rem; cursor:pointer;">&times;</button>
-                        <div id="cctv-header" style="color:white; text-align:center; margin-bottom:10px; font-weight:700;"></div>
-                        <div id="cctv-content" style="width:100%; height:300px; background:#000; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#94a3b8;">Loading camera feed...</div>
-                        <p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">Supports RTSP (VLC), HTTP streams, YouTube Live, or any embeddable URL</p>
-                    </div>
-                </div>
+                <div id="dashboard-content"></div>
             </div>
 
             <!-- Map -->
@@ -177,85 +615,25 @@
                 <div id="guidance-directions" class="directions-box"></div>
             </div>
 
-            <!-- Schedules -->
+            <!-- Schedules (Student only) -->
             <div id="panel-schedules" class="view-panel">
                 <div class="section-title">Your Class Schedule Today</div>
                 <div id="schedule-container"></div>
             </div>
 
-            <!-- Profile / Student Login & Registration -->
+            <!-- Profile (Student only) -->
             <div id="panel-profile" class="view-panel">
-                <div class="section-title">Student Portal</div>
+                <div class="section-title">Student Profile</div>
                 <div id="profile-container">
-                    <div class="room-card" style="text-align:center; padding:24px;">
-                        <p style="font-size:1rem; font-weight:600; color:var(--text-dark); margin-bottom:16px;">
-                            <i class="fa-solid fa-graduation-cap" style="font-size:2rem; color:var(--accent-blue); display:block; margin-bottom:8px;"></i>
-                            Student Access
-                        </p>
-                        <div style="display:flex; gap:10px;">
-                            <button class="btn-submit" style="flex:1;" onclick="showStudentLogin()">Login</button>
-                            <button class="btn-submit" style="flex:1; background:#10b981;" onclick="showStudentRegister()">Create Account</button>
-                        </div>
-                    </div>
-                    <div id="student-login-section" style="display:none;">
-                        <div class="room-card">
-                            <div class="card-top"><span class="room-title">Login</span></div>
-                            <form onsubmit="event.preventDefault(); studentLogin();">
-                                <div class="form-group"><label>Registration Number</label><input type="text" id="login_reg_no" class="form-control" placeholder="e.g., EBST5/18557/25" required></div>
-                                <div class="form-group"><label>Password</label><input type="password" id="login_password" class="form-control" placeholder="Enter your password" required></div>
-                                <button type="submit" class="btn-submit"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
-                            </form>
-                            <button class="btn-submit" style="background:transparent; color:var(--accent-blue); border:1px solid var(--accent-blue);" onclick="hideStudentForms()">Cancel</button>
-                        </div>
-                    </div>
-                    <div id="student-register-section" style="display:none;">
-                        <div class="room-card">
-                            <div class="card-top"><span class="room-title">Create Account</span></div>
-                            <div class="form-group"><label>Registration Number</label><input type="text" id="reg_no" class="form-control" placeholder="e.g., EBST5/18557/25"></div>
-                            <div class="form-group"><label>Password</label><input type="password" id="password" class="form-control" placeholder="Choose a password"></div>
-                            <div class="form-group"><label>Course / Program</label><input type="text" id="course" class="form-control" placeholder="e.g., Computer Science" oninput="fetchAvailableUnits()"></div>
-                            <div style="display:flex; gap:10px;">
-                                <div class="form-group" style="flex:1;"><label>Year</label><select id="year" class="form-control" onchange="fetchAvailableUnits()"><option value="">-- Select --</option><option value="1">Year 1</option><option value="2">Year 2</option><option value="3">Year 3</option><option value="4">Year 4</option></select></div>
-                                <div class="form-group" style="flex:1;"><label>Semester</label><select id="semester" class="form-control" onchange="fetchAvailableUnits()"><option value="">-- Select --</option><option value="1">Sem 1</option><option value="2">Sem 2</option></select></div>
-                            </div>
-                            <div class="form-group">
-                                <label>Enrolled Units</label>
-                                <div id="units-loading" style="font-size:0.8rem; color:var(--text-muted); display:none;">Loading...</div>
-                                <div id="units-container" style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:#f8fafc;"><p style="font-size:0.8rem; color:#94a3b8; text-align:center;">Select year & semester first</p></div>
-                                <input type="hidden" id="units" value="">
-                                <div id="selected-units-display" style="font-size:0.8rem; margin-top:6px; color:var(--accent-blue);"></div>
-                            </div>
-                            <button class="btn-submit" onclick="submitRegistration()"><i class="fa-solid fa-user-plus"></i> Complete Registration</button>
-                            <button class="btn-submit" style="background:transparent; color:var(--busy-red); border:1px solid var(--busy-red);" onclick="hideStudentForms()">Cancel</button>
-                        </div>
-                    </div>
-                    <div id="student-profile-display" style="display:none;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                            <span class="section-title" style="margin-bottom:0;">Your Profile</span>
-                            <button class="btn-logout" onclick="logoutUser()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
-                        </div>
-                        <div id="student-profile-content"></div>
-                    </div>
+                    <div id="student-profile-content"></div>
                 </div>
             </div>
 
             <!-- Admin Panel -->
             <div id="panel-admin" class="view-panel">
-                <div class="section-title">Admin Control Panel</div>
                 <div id="admin-panel-content">
-                    <div id="admin-login-overlay" class="login-overlay" style="position:relative; background:none; height:auto;">
-                        <div class="login-card">
-                            <h3><i class="fa-solid fa-user-shield" style="color:#ef4444;"></i> Admin Access</h3>
-                            <p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin-bottom:12px;">Enter the admin password to access controls</p>
-                            <div class="form-group"><label>Admin Password</label><input type="password" id="admin_password" class="form-control" placeholder="Enter admin password"></div>
-                            <button class="btn-submit" style="background:#ef4444;" onclick="adminLogin()"><i class="fa-solid fa-lock-open"></i> Unlock Admin Panel</button>
-                        </div>
-                    </div>
-                    <div id="admin-dashboard" style="display:none;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                            <span class="section-title" style="margin-bottom:0;">Room Override Control</span>
-                            <button class="btn-logout" onclick="logoutAdmin()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
-                        </div>
+                    <div id="admin-dashboard">
+                        <div class="section-title">Room Override Control</div>
                         <div id="admin-status-container"></div>
                         <button class="btn-submit" style="background: #ef4444;" onclick="releaseAllOverrides()">Reset All Room Overrides</button>
                         <hr style="margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0;">
@@ -311,7 +689,8 @@
                 </div>
             </div>
 
-            <nav class="bottom-nav">
+            <!-- Bottom Navigation -->
+            <nav class="bottom-nav" id="bottom-nav">
                 <button class="nav-item active" onclick="changePanel('panel-dashboard', this)"><i class="fa-solid fa-chart-simple"></i><span>Dashboard</span></button>
                 <button class="nav-item" onclick="changePanel('panel-routes', this)"><i class="fa-solid fa-map-location-dot"></i><span>Map</span></button>
                 <button class="nav-item" onclick="changePanel('panel-schedules', this); fetchPersonalSchedule();"><i class="fa-solid fa-calendar-days"></i><span>Schedules</span></button>
@@ -324,49 +703,550 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
-        const API_URL = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+        const API_URL = (() => {
+            const configured = window.__API_URL__;
+            if (configured) {
+                return configured.replace(/\/$/, '');
+            }
+
+            if (window.location.protocol === 'file:') {
+                return 'http://127.0.0.1:8000';
+            }
+
+            const stored = localStorage.getItem('api_base_url');
+            if (stored) {
+                return stored.replace(/\/$/, '');
+            }
+
+            return window.location.origin;
+        })();
         let map = null, routeLine = null, userMarker = null, campusGeoMarkers = [];
         let systemNodes = [];
-        let loggedInRegNo = localStorage.getItem('student_reg_no') || null;
-        let loggedInUserType = localStorage.getItem('user_type') || null;
+        let loggedInRegNo = null;
+        let loggedInUserType = null;
         let loggedInStudentData = null;
         let currentFilter = 'all';
         let allRooms = [];
         let searchQuery = '';
         let selectedUnits = [];
+        let loginRole = 'student';
+
+        // ════════════════════════════════════════════
+        // LOGIN OVERLAY MANAGEMENT
+        // ════════════════════════════════════════════
+
+        function setLoginRole(role) {
+            loginRole = role;
+            document.getElementById('role-student-btn').classList.toggle('active', role === 'student');
+            document.getElementById('role-admin-btn').classList.toggle('active', role === 'admin');
+            document.getElementById('login-student-fields').style.display = role === 'student' ? 'block' : 'none';
+            document.getElementById('login-admin-fields').style.display = role === 'admin' ? 'block' : 'none';
+            document.getElementById('login-btn-text').textContent = role === 'student' ? 'Sign In as Student' : 'Sign In as Admin';
+            document.getElementById('login-error').style.display = 'none';
+            const secondaryAction = document.getElementById('login-secondary-action');
+            secondaryAction.style.display = 'block';
+            secondaryAction.innerHTML = role === 'student'
+                ? '<i class="fa-solid fa-user-plus"></i> Create Student Account'
+                : '<i class="fa-solid fa-shield-halved"></i> Create Admin Account';
+            secondaryAction.onclick = role === 'student' ? showRegisterForm : showAdminRegisterForm;
+            // Clear fields
+            document.getElementById('admin_login_name').value = '';
+            document.getElementById('admin_password').value = '';
+            document.getElementById('login_password').value = '';
+            document.getElementById('login_reg_no').value = '';
+        }
+
+        function showLoginForm() {
+            document.getElementById('register-form').style.display = 'none';
+            document.getElementById('admin-register-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('register-error').style.display = 'none';
+            document.getElementById('admin-register-error').style.display = 'none';
+        }
+
+        function showRegisterForm() {
+            setLoginRole('student');
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('register-form').style.display = 'block';
+            document.getElementById('login-error').style.display = 'none';
+        }
+
+        function showAdminRegisterForm() {
+            setLoginRole('admin');
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('admin-register-form').style.display = 'block';
+            document.getElementById('login-error').style.display = 'none';
+        }
+
+        function showAdminLoginForm() {
+            document.getElementById('admin-register-form').style.display = 'none';
+            document.getElementById('register-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+            document.getElementById('admin-register-error').style.display = 'none';
+            setLoginRole('admin');
+        }
+
+        function handleLogin() {
+            if (loginRole === 'student') {
+                studentLogin();
+            } else {
+                adminLogin();
+            }
+        }
+
+        function hideLoginOverlay() {
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('header-actions').style.display = 'block';
+        }
+
+        function showLoginOverlay() {
+            document.getElementById('login-overlay').classList.remove('hidden');
+            document.getElementById('header-actions').style.display = 'none';
+            // Reset to login form
+            showLoginForm();
+            setLoginRole('student');
+        }
+
+        // ════════════════════════════════════════════
+        // NAVIGATION & ROLE-BASED UI
+        // ════════════════════════════════════════════
+
+        function adaptUIToRole() {
+            const nav = document.getElementById('bottom-nav');
+            const studentButtons = ['Dashboard', 'Map', 'Schedules', 'Profile'];
+            const adminButtons = ['Dashboard', 'Map', 'Admin'];
+            const allButtons = ['Dashboard', 'Map', 'Schedules', 'Profile', 'Admin'];
+
+            if (!loggedInUserType) {
+                // Not logged in - hide everything behind login overlay
+                return;
+            }
+
+            const isAdmin = loggedInUserType === 'admin';
+            const visibleTabs = isAdmin ? adminButtons : studentButtons;
+
+            // Show/hide nav items and panels
+            allButtons.forEach(name => {
+                const panelId = 'panel-' + name.toLowerCase().replace(/ /g, '');
+                const navItems = nav.querySelectorAll('.nav-item');
+                navItems.forEach(item => {
+                    const span = item.querySelector('span');
+                    if (span && span.textContent === name) {
+                        item.style.display = visibleTabs.includes(name) ? 'flex' : 'none';
+                    }
+                });
+                const panel = document.getElementById(panelId);
+                if (panel) {
+                    panel.style.display = visibleTabs.includes(name) ? '' : 'none';
+                }
+            });
+
+            // Adjust nav item widths
+            const visibleCount = visibleTabs.length;
+            nav.querySelectorAll('.nav-item').forEach(item => {
+                if (item.style.display !== 'none') {
+                    item.style.width = (100 / visibleCount) + '%';
+                }
+            });
+
+            // Navigate to dashboard
+            changePanel('panel-dashboard', document.querySelector('.nav-item'));
+        }
+
+        function changePanel(panelId, btnElement) {
+            // Only switch to panels that are visible
+            const panel = document.getElementById(panelId);
+            if (!panel || panel.style.display === 'none') return;
+
+            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+            if (btnElement) {
+                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+                btnElement.classList.add('active');
+            }
+            panel.classList.add('active');
+            if (panelId === 'panel-routes') setTimeout(() => { initTharakaMap(); if (map) map.invalidateSize(); }, 200);
+            if (panelId === 'panel-admin' && loggedInUserType === 'admin') fetchAdminStatus();
+        }
+
+        // ════════════════════════════════════════════
+        // SESSION RESTORATION
+        // ════════════════════════════════════════════
 
         function restoreSession() {
-            if (loggedInRegNo && loggedInUserType === 'student') {
-                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
-                loggedInStudentData = { reg_no: loggedInRegNo };
-                showStudentProfile();
-            } else if (loggedInUserType === 'admin') {
-                document.getElementById('session-indicator').innerHTML = `<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode`;
-                document.getElementById('admin-login-overlay').style.display = 'none';
-                document.getElementById('admin-dashboard').style.display = 'block';
+            const storedRegNo = localStorage.getItem('student_reg_no');
+            const storedUserType = localStorage.getItem('user_type');
+
+            if (storedRegNo && storedUserType === 'student') {
+                loggedInRegNo = storedRegNo;
+                loggedInUserType = 'student';
+                loggedInStudentData = { reg_no: storedRegNo };
+                hideLoginOverlay();
+                updateSessionIndicator();
+                adaptUIToRole();
+                renderDashboard();
+                fetchProfile();
+            } else if (storedUserType === 'admin') {
+                loggedInUserType = 'admin';
+                loggedInRegNo = null;
+                loggedInStudentData = null;
+                hideLoginOverlay();
+                updateSessionIndicator();
+                adaptUIToRole();
+                renderDashboard();
                 fetchAdminStatus();
             }
         }
-        if (loggedInRegNo || loggedInUserType) restoreSession();
 
-        function changePanel(panelId, btnElement) {
-            document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-            if(btnElement) { document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active')); btnElement.classList.add('active'); }
-            document.getElementById(panelId).classList.add('active');
-            if(panelId === 'panel-routes') setTimeout(() => { initTharakaMap(); if(map) map.invalidateSize(); }, 200);
-            if(panelId === 'panel-admin' && loggedInUserType === 'admin') fetchAdminStatus();
+        function updateSessionIndicator() {
+            const indicator = document.getElementById('session-indicator');
+            if (loggedInUserType === 'student') {
+                indicator.innerHTML = `<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
+            } else if (loggedInUserType === 'admin') {
+                indicator.innerHTML = `<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode`;
+            } else {
+                indicator.innerHTML = `<i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine`;
+            }
         }
 
-        // ── Student Functions ──
-        function showStudentLogin() { document.getElementById('student-login-section').style.display = 'block'; document.getElementById('student-register-section').style.display = 'none'; }
-        function showStudentRegister() { document.getElementById('student-register-section').style.display = 'block'; document.getElementById('student-login-section').style.display = 'none'; }
-        function hideStudentForms() { document.getElementById('student-login-section').style.display = 'none'; document.getElementById('student-register-section').style.display = 'none'; }
-
-        function showStudentProfile() {
-            const c = document.getElementById('profile-container');
-            c.innerHTML = `<div class="room-card" style="display:flex; flex-direction:row; justify-content:space-between; align-items:center;"><div><span class="room-title">${loggedInRegNo||'Student'}</span><div style="font-size:0.8rem;color:var(--text-muted);">${loggedInStudentData?.course||''}</div></div><button class="btn-logout" onclick="logoutUser()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></div><div id="student-profile-content"></div>`;
-            fetchProfile();
+        function globalLogout() {
+            loggedInRegNo = null;
+            loggedInUserType = null;
+            loggedInStudentData = null;
+            localStorage.removeItem('student_reg_no');
+            localStorage.removeItem('user_type');
+            updateSessionIndicator();
+            showLoginOverlay();
+            // Reset profile container
+            document.getElementById('profile-container').innerHTML = '<div id="student-profile-content"></div>';
+            document.getElementById('schedule-container').innerHTML = '';
+            document.getElementById('dashboard-content').innerHTML = '';
+            // Reset admin
+            document.getElementById('admin-dashboard').style.display = 'block';
         }
+
+        // ════════════════════════════════════════════
+        // STUDENT AUTH
+        // ════════════════════════════════════════════
+
+        async function studentLogin() {
+            const reg_no = document.getElementById('login_reg_no').value.trim();
+            const password = document.getElementById('login_password').value;
+            const errorEl = document.getElementById('login-error');
+
+            if (!reg_no || !password) {
+                errorEl.textContent = 'Please fill in all fields.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const r = await fetch(`${API_URL}/students/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reg_no, password })
+                });
+                const d = await r.json();
+                if (!r.ok) {
+                    errorEl.textContent = d.detail || 'Login failed.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                loggedInRegNo = d.reg_no;
+                loggedInUserType = 'student';
+                loggedInStudentData = d;
+                localStorage.setItem('student_reg_no', loggedInRegNo);
+                localStorage.setItem('user_type', 'student');
+
+                hideLoginOverlay();
+                updateSessionIndicator();
+                adaptUIToRole();
+                renderDashboard();
+                fetchProfile();
+                fetchPersonalSchedule();
+            } catch (e) {
+                document.getElementById('login-error').textContent = 'Connection error. Check your internet.';
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        async function submitRegistration() {
+            const ch = document.querySelectorAll('#units-container input[type="checkbox"]:checked');
+            const reg_no = document.getElementById('reg_no').value.trim();
+            const password = document.getElementById('password').value;
+            const course = document.getElementById('course').value;
+            const year = parseInt(document.getElementById('year').value) || 1;
+            const semester = parseInt(document.getElementById('semester').value) || 1;
+            const units = Array.from(ch).map(cb => cb.value).join(',') || document.getElementById('units').value;
+            const errorEl = document.getElementById('register-error');
+
+            if (!reg_no || !password || !course) {
+                errorEl.textContent = 'Please fill in registration number, password, and course.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const r = await fetch(`${API_URL}/students/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reg_no, password, course, year, semester, units })
+                });
+                const d = await r.json();
+                if (!r.ok) {
+                    errorEl.textContent = d.detail || 'Registration failed.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                alert('Account created! You can now login.');
+                showLoginForm();
+                document.getElementById('login_reg_no').value = reg_no;
+            } catch (e) {
+                document.getElementById('register-error').textContent = 'Connection error.';
+                document.getElementById('register-error').style.display = 'block';
+            }
+        }
+
+        async function fetchAvailableUnits() {
+            const c = document.getElementById('course').value.trim();
+            const y = document.getElementById('year').value;
+            const se = document.getElementById('semester').value;
+            const con = document.getElementById('units-container');
+            const l = document.getElementById('units-loading');
+
+            if (!y) {
+                con.innerHTML = '<p style="font-size:0.8rem;color:#94a3b8;text-align:center;">Select year & semester first</p>';
+                return;
+            }
+
+            l.style.display = 'block';
+            let url = `${API_URL}/students/available-units?year=${y}`;
+            if (se) url += `&semester=${se}`;
+            if (c) url += `&course=${encodeURIComponent(c)}`;
+
+            try {
+                const r = await fetch(url);
+                const d = await r.json();
+                l.style.display = 'none';
+                if (d.units && d.units.length) {
+                    con.innerHTML = d.units.map(u => 
+                        `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #e2e8f0;font-size:0.85rem;cursor:pointer;">
+                            <input type="checkbox" value="${u.code.replace(/"/g, '"')}" onchange="updateSelectedDisplay()">
+                            <span><strong>${u.code}</strong>${u.name ? ' - '+u.name : ''}</span>
+                        </label>`
+                    ).join('');
+                } else {
+                    con.innerHTML = '<p style="font-size:0.8rem;color:var(--text-muted);text-align:center;">No units found.</p>';
+                }
+            } catch (e) {
+                l.style.display = 'none';
+                con.innerHTML = '<p style="font-size:0.8rem;color:var(--busy-red);text-align:center;">Error loading units.</p>';
+            }
+        }
+
+        function updateSelectedDisplay() {
+            const ch = document.querySelectorAll('#units-container input[type="checkbox"]:checked');
+            document.getElementById('units').value = Array.from(ch).map(cb => cb.value).join(',');
+        }
+
+        // ════════════════════════════════════════════
+        // ADMIN AUTH
+        // ════════════════════════════════════════════
+
+        function getStoredAdminPassword() {
+            return sessionStorage.getItem('admin_password') || '';
+        }
+
+        function getStoredAdminName() {
+            return sessionStorage.getItem('admin_name') || '';
+        }
+
+        function isCompactScreen() {
+            return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+        }
+
+        function getDashboardQuickActions() {
+            const items = [
+                { title: 'Rooms', icon: 'fa-chart-simple', text: 'Open live room status', action: "changePanel('panel-dashboard', document.querySelector('.nav-item'))" },
+                { title: 'Map', icon: 'fa-map-location-dot', text: 'Plan a route on campus', action: "changePanel('panel-routes', document.querySelectorAll('.nav-item')[1])" }
+            ];
+
+            if (loggedInUserType === 'student') {
+                items.push(
+                    { title: 'Schedule', icon: 'fa-calendar-days', text: 'See today’s classes', action: "changePanel('panel-schedules', document.querySelectorAll('.nav-item')[2]); fetchPersonalSchedule();" },
+                    { title: 'Profile', icon: 'fa-user', text: 'View your student profile', action: "changePanel('panel-profile', document.querySelectorAll('.nav-item')[3])" }
+                );
+            } else {
+                items.push(
+                    { title: 'Admin', icon: 'fa-shield-halved', text: 'Open admin controls', action: "changePanel('panel-admin', document.querySelectorAll('.nav-item')[loggedInUserType === 'admin' ? 2 : 4]);" },
+                    { title: 'Logout', icon: 'fa-right-from-bracket', text: 'End this session', action: 'globalLogout()' }
+                );
+            }
+
+            return items;
+        }
+
+        function buildMobileDashboardSummary() {
+            const roleLabel = loggedInUserType === 'student' ? 'Student mode' : 'Admin mode';
+            const identityLabel = loggedInUserType === 'student' ? (loggedInRegNo || 'Student') : (getStoredAdminName() || 'Admin');
+            return `
+                <div class="mobile-hero">
+                    <div class="mobile-hero-top">
+                        <div>
+                            <div class="mobile-hero-title">Smart Campus Matrix</div>
+                            <div class="mobile-hero-subtitle">${roleLabel} • ${identityLabel}</div>
+                        </div>
+                        <img class="brand-logo" src="/static/logo.png" alt="Smart Campus Matrix logo" style="margin-right:0;">
+                    </div>
+                    <div class="mobile-status-strip">
+                        <div class="mobile-status-chip">Live rooms</div>
+                        <div class="mobile-status-chip">Map routes</div>
+                        <div class="mobile-status-chip">CCTV</div>
+                        <div class="mobile-status-chip">Timetable</div>
+                    </div>
+                    <div class="mobile-quick-actions">
+                        ${getDashboardQuickActions().map(item => `
+                            <button class="mobile-action-card" onclick="${item.action}">
+                                <i class="fa-solid ${item.icon}"></i>
+                                <div class="mobile-action-title">${item.title}</div>
+                                <div class="mobile-action-text">${item.text}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function adminLogin() {
+            const admin_name = document.getElementById('admin_login_name').value.trim();
+            const pwd = document.getElementById('admin_password').value;
+            const errorEl = document.getElementById('login-error');
+
+            if (!admin_name || !pwd) {
+                errorEl.textContent = 'Enter admin username and password.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const r = await fetch(`${API_URL}/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_name, admin_password: pwd })
+                });
+                const d = await r.json();
+                if (!r.ok) {
+                    errorEl.textContent = d.detail || 'Invalid password.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                // Store admin password in sessionStorage for admin operations
+                sessionStorage.setItem('admin_name', admin_name);
+                sessionStorage.setItem('admin_password', pwd);
+
+                loggedInUserType = 'admin';
+                loggedInRegNo = null;
+                loggedInStudentData = null;
+                localStorage.setItem('user_type', 'admin');
+                localStorage.removeItem('student_reg_no');
+
+                hideLoginOverlay();
+                updateSessionIndicator();
+                adaptUIToRole();
+                renderDashboard();
+                fetchAdminStatus();
+            } catch (e) {
+                document.getElementById('login-error').textContent = 'Connection error.';
+                document.getElementById('login-error').style.display = 'block';
+            }
+        }
+
+        async function submitAdminRegistration() {
+            const admin_name = document.getElementById('admin_name').value.trim();
+            const admin_password = document.getElementById('admin_password_new').value;
+            const otp = document.getElementById('admin_otp').value.trim();
+            const errorEl = document.getElementById('admin-register-error');
+
+            if (!admin_name || !admin_password || !otp) {
+                errorEl.textContent = 'Please fill in admin name, password, and OTP.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            if (otp.length !== 4) {
+                errorEl.textContent = 'OTP must be 4 digits.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            try {
+                const r = await fetch(`${API_URL}/admin/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ admin_name, admin_password, otp })
+                });
+                const d = await r.json();
+                if (!r.ok) {
+                    errorEl.textContent = d.detail || 'Admin registration failed.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('admin_name').value = '';
+                document.getElementById('admin_password_new').value = '';
+                document.getElementById('admin_otp').value = '';
+                showAdminLoginForm();
+                document.getElementById('admin_login_name').value = admin_name;
+                document.getElementById('admin_password').value = admin_password;
+                await adminLogin();
+            } catch (e) {
+                errorEl.textContent = 'Connection error.';
+                errorEl.style.display = 'block';
+            }
+        }
+
+        // ════════════════════════════════════════════
+        // ADAPTIVE DASHBOARD RENDER
+        // ════════════════════════════════════════════
+
+        function renderDashboard() {
+            const container = document.getElementById('dashboard-content');
+            if (!loggedInUserType) return;
+
+            const mobileShell = isCompactScreen() ? buildMobileDashboardSummary() : '';
+
+            container.innerHTML = `
+                ${mobileShell}
+                <div class="section-title">Live Space Allocations</div>
+                <div class="search-box" style="padding: 10px; margin-bottom: 12px;">
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="room-search-input" class="form-control" placeholder="Search rooms..." oninput="handleRoomSearch()" style="padding-left: 36px;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <button class="filter-btn active" onclick="filterRooms('all', event)" style="flex: 1; min-width: 70px;">All</button>
+                    <button class="filter-btn" onclick="filterRooms('scheduled', event)" style="flex: 1; min-width: 70px;">Scheduled</button>
+                    <button class="filter-btn" onclick="filterRooms('occupied', event)" style="flex: 1; min-width: 70px;">Occupied</button>
+                    <button class="filter-btn" onclick="filterRooms('empty', event)" style="flex: 1; min-width: 70px;">Empty</button>
+                </div>
+                <div id="rooms-list-container"></div>
+                <div id="cctv-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display:none; justify-content:center; align-items:center;">
+                    <div style="position:relative; width:90%; max-width:500px;">
+                        <button onclick="closeCCTV()" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2rem; cursor:pointer;">&times;</button>
+                        <div id="cctv-header" style="color:white; text-align:center; margin-bottom:10px; font-weight:700;"></div>
+                        <div id="cctv-content" style="width:100%; height:300px; background:#000; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#94a3b8;">Loading camera feed...</div>
+                        <p style="color:#94a3b8; font-size:0.75rem; text-align:center; margin-top:8px;">Supports RTSP (VLC), HTTP streams, YouTube Live, or any embeddable URL</p>
+                    </div>
+                </div>
+            `;
+            fetchRoomStatus();
+        }
+
+        // ════════════════════════════════════════════
+        // STUDENT PROFILE
+        // ════════════════════════════════════════════
 
         async function fetchProfile() {
             const c = document.getElementById('student-profile-content');
@@ -374,214 +1254,500 @@
             try {
                 const res = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
                 const data = await res.json();
-                if (!res.ok) { c.innerHTML = `<p style="padding:10px;color:var(--busy-red);">${data.detail||'Error'}</p>`; return; }
+                if (!res.ok) {
+                    c.innerHTML = `<p style="padding:10px;color:var(--busy-red);">${data.detail || 'Error'}</p>`;
+                    return;
+                }
                 loggedInStudentData = data.student || loggedInStudentData;
-                const nxt = Array.isArray(data.schedule)&&data.schedule.length ? data.schedule[0] : null;
-                const cards = Array.isArray(data.schedule)&&data.schedule.length ? data.schedule.map(i=>`<div class="schedule-card" style="border-left:4px solid var(--accent-blue);"><div class="card-top"><span class="room-title">${i.course_code||'Unit'}</span><span class="status-pill available">${i.venue||'TBD'}</span></div><div style="font-size:0.85rem;color:var(--text-dark);">${i.course_name||'Course'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${i.time||'N/A'}</div></div>`).join('') : `<div class="room-card" style="text-align:center;color:var(--text-muted);">No classes today.</div>`;
-                c.innerHTML = `<div class="room-card" style="background:#f8fafc;"><div class="schedule-line"><strong>Reg:</strong> ${data.student?.reg_no||loggedInRegNo}</div><div class="schedule-line"><strong>Course:</strong> ${data.student?.course||'N/A'}</div><div class="schedule-line"><strong>Year:</strong> ${data.student?.year||'N/A'} | <strong>Sem:</strong> ${data.student?.semester||'N/A'}</div><div class="schedule-line"><strong>Units:</strong> ${data.student?.units||'N/A'}</div></div><div class="room-card"><div class="card-top"><span class="room-title">Next Class</span><span class="status-pill ${nxt?'available':'busy'}">${nxt?nxt.course_code:'None'}</span></div>${nxt?`<div class="schedule-line"><i class="fa-regular fa-location-dot"></i> ${nxt.venue||'TBD'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${nxt.time||'N/A'}</div>`:`<div style="padding:8px;color:var(--text-muted);">No active class today.</div>`}</div><div class="section-title" style="margin-top:0;">Today's Classes</div>${cards}`;
-            } catch(e) { c.innerHTML = `<p style="color:var(--busy-red);">Error loading profile.</p>`; }
+                const nxt = Array.isArray(data.schedule) && data.schedule.length ? data.schedule[0] : null;
+                const cards = Array.isArray(data.schedule) && data.schedule.length
+                    ? data.schedule.map(i => `<div class="schedule-card" style="border-left:4px solid var(--accent-blue);"><div class="card-top"><span class="room-title">${i.course_code || 'Unit'}</span><span class="status-pill available">${i.venue || 'TBD'}</span></div><div style="font-size:0.85rem;color:var(--text-dark);">${i.course_name || 'Course'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${i.time || 'N/A'}</div></div>`).join('')
+                    : `<div class="room-card" style="text-align:center;color:var(--text-muted);">No classes today.</div>`;
+
+                c.innerHTML = `
+                    <div class="room-card" style="background:#f8fafc;">
+                        <div class="schedule-line"><strong>Reg:</strong> ${data.student?.reg_no || loggedInRegNo}</div>
+                        <div class="schedule-line"><strong>Course:</strong> ${data.student?.course || 'N/A'}</div>
+                        <div class="schedule-line"><strong>Year:</strong> ${data.student?.year || 'N/A'} | <strong>Sem:</strong> ${data.student?.semester || 'N/A'}</div>
+                        <div class="schedule-line"><strong>Units:</strong> ${data.student?.units || 'N/A'}</div>
+                    </div>
+                    <div class="room-card">
+                        <div class="card-top"><span class="room-title">Next Class</span><span class="status-pill ${nxt ? 'available' : 'busy'}">${nxt ? nxt.course_code : 'None'}</span></div>
+                        ${nxt ? `<div class="schedule-line"><i class="fa-regular fa-location-dot"></i> ${nxt.venue || 'TBD'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${nxt.time || 'N/A'}</div>` : `<div style="padding:8px;color:var(--text-muted);">No active class today.</div>`}
+                    </div>
+                    <div class="section-title" style="margin-top:0;">Today's Classes</div>
+                    ${cards}
+                `;
+            } catch (e) {
+                c.innerHTML = `<p style="color:var(--busy-red);">Error loading profile.</p>`;
+            }
         }
 
         async function fetchPersonalSchedule() {
             const c = document.getElementById('schedule-container');
-            if (!loggedInRegNo) { c.innerHTML = `<div class="room-card" style="text-align:center;padding:24px;"><i class="fa-solid fa-user-slash" style="font-size:2rem;color:var(--text-muted);display:block;margin-bottom:10px;"></i><p style="color:var(--text-muted);">Login via <strong>Profile</strong> tab.</p><button class="btn-submit" style="max-width:200px;margin:12px auto 0;" onclick="changePanel('panel-profile',document.querySelectorAll('.nav-item')[3])">Go to Profile</button></div>`; return; }
+            if (!loggedInRegNo) {
+                c.innerHTML = `<div class="room-card" style="text-align:center;padding:24px;"><i class="fa-solid fa-user-slash" style="font-size:2rem;color:var(--text-muted);display:block;margin-bottom:10px;"></i><p style="color:var(--text-muted);">Please login first.</p></div>`;
+                return;
+            }
             try {
                 const res = await fetch(`${API_URL}/students/schedule/${loggedInRegNo}`);
                 if (!res.ok) { c.innerHTML = `<p style="color:var(--busy-red);">Profile not found.</p>`; return; }
                 const data = await res.json();
-                if (!data.schedule||!data.schedule.length) { c.innerHTML = `<p style="font-size:0.85rem;color:var(--text-dark);">Course: <strong>${data.student?.course||'N/A'}</strong></p><p style="text-align:center;color:var(--text-muted);padding:20px;">No classes today.</p>`; return; }
-                let h = `<p style="font-size:0.8rem;font-weight:700;color:var(--accent-blue);">Today: ${data.day}</p><p style="font-size:0.85rem;color:var(--text-dark);">Course: <strong>${data.student?.course||'N/A'}</strong></p>`;
-                data.schedule.forEach(i => { h += `<div class="schedule-card" style="border-left:4px solid var(--accent-blue);"><div class="card-top"><span class="room-title">${i.course_code||'Unit'}</span><span class="status-pill available">${i.venue||'TBD'}</span></div><div style="font-size:0.85rem;font-weight:600;color:var(--text-dark);">${i.course_name||'Lecture'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${i.time||'N/A'}</div></div>`; });
+                if (!data.schedule || !data.schedule.length) {
+                    c.innerHTML = `<p style="font-size:0.85rem;color:var(--text-dark);">Course: <strong>${data.student?.course || 'N/A'}</strong></p><p style="text-align:center;color:var(--text-muted);padding:20px;">No classes today.</p>`;
+                    return;
+                }
+                let h = `<p style="font-size:0.8rem;font-weight:700;color:var(--accent-blue);">Today: ${data.day}</p><p style="font-size:0.85rem;color:var(--text-dark);">Course: <strong>${data.student?.course || 'N/A'}</strong></p>`;
+                data.schedule.forEach(i => {
+                    h += `<div class="schedule-card" style="border-left:4px solid var(--accent-blue);"><div class="card-top"><span class="room-title">${i.course_code || 'Unit'}</span><span class="status-pill available">${i.venue || 'TBD'}</span></div><div style="font-size:0.85rem;font-weight:600;color:var(--text-dark);">${i.course_name || 'Lecture'}</div><div class="schedule-line"><i class="fa-regular fa-clock"></i> ${i.time || 'N/A'}</div></div>`;
+                });
                 c.innerHTML = h;
-            } catch(e) { c.innerHTML = `<p style="color:var(--busy-red);">Error.</p>`; }
+            } catch (e) { c.innerHTML = `<p style="color:var(--busy-red);">Error loading schedule.</p>`; }
         }
 
-        // ── Map ──
+        // ════════════════════════════════════════════
+        // MAP
+        // ════════════════════════════════════════════
+
         function initTharakaMap() {
             if (map) return;
             map = L.map('map', { maxBounds: [[-1.1000,36.9000],[0.0000,38.1000]], maxZoom:19, minZoom:10 }).setView([-0.568,37.500],11);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             startLiveHardwareTracking(); fetchSystemNodesOnly();
         }
+
         function startLiveHardwareTracking() {
             if (!navigator.geolocation) return;
             navigator.geolocation.watchPosition((pos) => {
-                let lat=pos.coords.latitude, lng=pos.coords.longitude;
-                if (L.latLng(lat,lng).distanceTo(L.latLng(-0.092969,37.989887))>5000) { lat=-0.092969; lng=37.989887; }
+                let lat = pos.coords.latitude, lng = pos.coords.longitude;
+                if (L.latLng(lat,lng).distanceTo(L.latLng(-0.092969,37.989887)) > 5000) { lat = -0.092969; lng = 37.989887; }
                 if (userMarker) userMarker.setLatLng([lat,lng]);
                 else userMarker = L.marker([lat,lng],{icon:L.divIcon({html:'<div style="background:#10b981;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 0 12px #10b981;"></div>'})}).addTo(map).bindPopup("<b>Your Location</b>");
             },()=>{},{enableHighAccuracy:true});
         }
+
         async function fetchSystemNodesOnly() {
             try {
                 const res = await fetch(`${API_URL}/api/geo-nodes`);
                 const data = await res.json(); systemNodes = data;
-                const s=document.getElementById('start_node'), e=document.getElementById('end_node');
-                s.innerHTML='<option value="GPS_LIVE">Use My Live GPS Location</option>'; e.innerHTML='';
-                campusGeoMarkers.forEach(m=>map.removeLayer(m)); campusGeoMarkers=[];
-                data.forEach(n=>{let v=n.name||"Unnamed"; s.add(new Option(v,v)); e.add(new Option(v,v)); if(n.lat&&n.lng){let p=L.marker([n.lat,n.lng]).addTo(map).bindPopup(`<b>${v}</b><br>${n.description||''}`); campusGeoMarkers.push(p);}});
-            } catch(e){}
+                const s = document.getElementById('start_node'), e = document.getElementById('end_node');
+                s.innerHTML = '<option value="GPS_LIVE">Use My Live GPS Location</option>'; e.innerHTML = '';
+                campusGeoMarkers.forEach(m => map.removeLayer(m)); campusGeoMarkers = [];
+                data.forEach(n => {
+                    let v = n.name || "Unnamed";
+                    s.add(new Option(v,v));
+                    e.add(new Option(v,v));
+                    if (n.lat && n.lng) {
+                        let p = L.marker([n.lat,n.lng]).addTo(map).bindPopup(`<b>${v}</b><br>${n.description||''}`);
+                        campusGeoMarkers.push(p);
+                    }
+                });
+            } catch(e) {}
         }
+
         async function computeEngineRoute() {
-            const s=document.getElementById('start_node').value, en=document.getElementById('end_node').value, d=document.getElementById('guidance-directions');
+            const s = document.getElementById('start_node').value, en = document.getElementById('end_node').value, d = document.getElementById('guidance-directions');
             if (routeLine) map.removeLayer(routeLine);
-            let ol, on; if (s==="GPS_LIVE"){if(!userMarker){ol=-0.092969;on=37.989887;}else{const c=userMarker.getLatLng();ol=c.lat;on=c.lng;}}else{const n=systemNodes.find(x=>x.name===s);if(!n)return;ol=n.lat;on=n.lng;}
+            let ol, on;
+            if (s === "GPS_LIVE") {
+                if (!userMarker) { ol = -0.092969; on = 37.989887; }
+                else { const c = userMarker.getLatLng(); ol = c.lat; on = c.lng; }
+            } else {
+                const n = systemNodes.find(x => x.name === s);
+                if (!n) return;
+                ol = n.lat; on = n.lng;
+            }
             try {
-                d.style.display='block'; d.innerHTML='<p style="color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Routing...</p>';
-                const r=await fetch(`${API_URL}/navigate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_node:s==="GPS_LIVE"?"Main Gate Junction":s,end_node:en})});
-                if(!r.ok)throw Error();
-                const p=await r.json(), co=p.coordinates||[[ol,on]], di=p.total_distance_meters||L.latLng(ol,on).distanceTo(L.latLng(co[co.length-1]));
-                routeLine=L.polyline(co,{color:'#0284c7',weight:6,lineCap:'round'}).addTo(map); map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
-                d.innerHTML=`<p style="font-weight:700;color:var(--accent-blue);"><i class="fa-solid fa-signs-post"></i> Directions</p><div class="step-entry"><span>Depart: <b>${s==="GPS_LIVE"?"Your Location":s}</b></span></div><div class="step-entry"><span>Arrive: <b>${en}</b></span></div><div class="step-entry" style="border-top:none;font-weight:700;"><i class="fa-solid fa-ruler-combined"></i> ${Math.round(di)} meters</div>`;
-            } catch(e){
-                const t=systemNodes.find(x=>x.name===en); if(!t)return;
-                const p1=L.latLng(ol,on), p2=L.latLng(t.lat,t.lng);
-                routeLine=L.polyline([p1,p2],{color:'#ef4444',weight:4,dashArray:'5,10'}).addTo(map); map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
-                d.innerHTML=`<p style="font-weight:700;color:var(--busy-red);"><i class="fa-solid fa-triangle-exclamation"></i> Direct line: ${Math.round(p1.distanceTo(p2))}m</p>`;
+                d.style.display = 'block'; d.innerHTML = '<p style="color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Routing...</p>';
+                const r = await fetch(`${API_URL}/navigate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_node: s === "GPS_LIVE" ? "Main Gate Junction" : s, end_node: en })
+                });
+                if (!r.ok) throw Error();
+                const p = await r.json(), co = p.coordinates || [[ol,on]], di = p.total_distance_meters || L.latLng(ol,on).distanceTo(L.latLng(co[co.length-1]));
+                routeLine = L.polyline(co,{color:'#0284c7',weight:6,lineCap:'round'}).addTo(map);
+                map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
+                d.innerHTML = `<p style="font-weight:700;color:var(--accent-blue);"><i class="fa-solid fa-signs-post"></i> Directions</p><div class="step-entry"><span>Depart: <b>${s === "GPS_LIVE" ? "Your Location" : s}</b></span></div><div class="step-entry"><span>Arrive: <b>${en}</b></span></div><div class="step-entry" style="border-top:none;font-weight:700;"><i class="fa-solid fa-ruler-combined"></i> ${Math.round(di)} meters</div>`;
+            } catch(e) {
+                const t = systemNodes.find(x => x.name === en);
+                if (!t) return;
+                const p1 = L.latLng(ol,on), p2 = L.latLng(t.lat,t.lng);
+                routeLine = L.polyline([p1,p2],{color:'#ef4444',weight:4,dashArray:'5,10'}).addTo(map);
+                map.fitBounds(routeLine.getBounds(),{padding:[40,40]});
+                d.innerHTML = `<p style="font-weight:700;color:var(--busy-red);"><i class="fa-solid fa-triangle-exclamation"></i> Direct line: ${Math.round(p1.distanceTo(p2))}m</p>`;
             }
         }
 
-        // ── Student Auth ──
-        async function studentLogin() {
-            const p={reg_no:document.getElementById('login_reg_no').value.trim(),password:document.getElementById('login_password').value};
-            if(!p.reg_no||!p.password){alert('Fill all fields.');return;}
-            try {
-                const r=await fetch(`${API_URL}/students/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-                const d=await r.json(); if(!r.ok){alert(d.detail||'Login failed.');return;}
-                loggedInRegNo=d.reg_no; loggedInUserType='student'; loggedInStudentData=d;
-                localStorage.setItem('student_reg_no',loggedInRegNo); localStorage.setItem('user_type','student');
-                document.getElementById('session-indicator').innerHTML=`<i class="fa-solid fa-user-check" style="color:#10b981"></i> ${loggedInRegNo}`;
-                hideStudentForms(); showStudentProfile(); changePanel('panel-schedules',document.querySelectorAll('.nav-item')[2]); fetchPersonalSchedule();
-            } catch(e){alert('Connection error.');}
-        }
-        async function submitRegistration() {
-            const ch=document.querySelectorAll('#units-container input[type="checkbox"]:checked');
-            const p={reg_no:document.getElementById('reg_no').value.trim(),password:document.getElementById('password').value,course:document.getElementById('course').value,year:parseInt(document.getElementById('year').value)||1,semester:parseInt(document.getElementById('semester').value)||1,units:Array.from(ch).map(cb=>cb.value).join(',')||document.getElementById('units').value};
-            try {
-                const r=await fetch(`${API_URL}/students/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-                const d=await r.json(); if(!r.ok){alert(d.detail||'Registration failed.');return;}
-                alert('Account created! You can now login.'); hideStudentForms(); showStudentLogin(); document.getElementById('login_reg_no').value=p.reg_no;
-            } catch(e){alert('Connection error.');}
-        }
-        async function fetchAvailableUnits() {
-            const c=document.getElementById('course').value.trim(), y=document.getElementById('year').value, se=document.getElementById('semester').value, con=document.getElementById('units-container'), l=document.getElementById('units-loading');
-            if(!y){con.innerHTML='<p style="font-size:0.8rem;color:#94a3b8;text-align:center;">Select year & semester first</p>';return;}
-            l.style.display='block'; let url=`${API_URL}/students/available-units?year=${y}`;
-            if(se)url+=`&semester=${se}`; if(c)url+=`&course=${encodeURIComponent(c)}`;
-            try {
-                const r=await fetch(url), d=await r.json(); l.style.display='none';
-                if(d.units&&d.units.length) con.innerHTML=d.units.map(u=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #e2e8f0;font-size:0.85rem;cursor:pointer;"><input type="checkbox" value="${u.code.replace(/"/g,'"')}" onchange="updateSelectedDisplay()"><span><strong>${u.code}</strong>${u.name?' - '+u.name:''}</span></label>`).join('');
-                else con.innerHTML='<p style="font-size:0.8rem;color:var(--text-muted);text-align:center;">No units found.</p>';
-            } catch(e){l.style.display='none'; con.innerHTML='<p style="font-size:0.8rem;color:var(--busy-red);">Error loading units.</p>';}
-        }
-        function updateSelectedDisplay() {
-            const ch=document.querySelectorAll('#units-container input[type="checkbox"]:checked');
-            document.getElementById('units').value=Array.from(ch).map(cb=>cb.value).join(',');
-        }
+        // ════════════════════════════════════════════
+        // DASHBOARD ROOMS (Shared by Student & Admin)
+        // ════════════════════════════════════════════
 
-        // ── Admin Auth ──
-        async function adminLogin() {
-            const pwd=document.getElementById('admin_password').value; if(!pwd){alert('Enter admin password.');return;}
-            try {
-                const r=await fetch(`${API_URL}/admin/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_password:pwd})});
-                const d=await r.json(); if(!r.ok){alert(d.detail||'Invalid password.');return;}
-                loggedInUserType='admin'; loggedInRegNo=null; loggedInStudentData=null;
-                localStorage.setItem('user_type','admin'); localStorage.removeItem('student_reg_no');
-                document.getElementById('session-indicator').innerHTML='<i class="fa-solid fa-user-shield" style="color:#ef4444"></i> Admin Mode';
-                document.getElementById('admin-login-overlay').style.display='none'; document.getElementById('admin-dashboard').style.display='block';
-                fetchAdminStatus();
-            } catch(e){alert('Connection error.');}
-        }
-        function logoutAdmin() {
-            loggedInUserType=null; localStorage.removeItem('user_type');
-            document.getElementById('session-indicator').innerHTML='<i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine';
-            document.getElementById('admin-login-overlay').style.display=''; document.getElementById('admin-dashboard').style.display='none';
-            changePanel('panel-dashboard',document.querySelector('.nav-item'));
-        }
-        function logoutUser() {
-            loggedInRegNo=null; loggedInUserType=null; loggedInStudentData=null;
-            localStorage.removeItem('student_reg_no'); localStorage.removeItem('user_type');
-            document.getElementById('session-indicator').innerHTML='<i class="fa-solid fa-layer-group"></i> Timetable & Space Allocation Engine';
-            document.getElementById('profile-container').innerHTML=`<div class="room-card" style="text-align:center;padding:24px;"><p style="font-size:1rem;font-weight:600;color:var(--text-dark);margin-bottom:16px;"><i class="fa-solid fa-graduation-cap" style="font-size:2rem;color:var(--accent-blue);display:block;margin-bottom:8px;"></i>Student Access</p><div style="display:flex;gap:10px;"><button class="btn-submit" style="flex:1;" onclick="showStudentLogin()">Login</button><button class="btn-submit" style="flex:1;background:#10b981;" onclick="showStudentRegister()">Create Account</button></div></div>`;
-            changePanel('panel-dashboard',document.querySelector('.nav-item'));
-        }
-
-        // ── Admin Dashboard ──
-        async function fetchAdminStatus() {
-            const c=document.getElementById('admin-status-container'); c.innerHTML='<p style="color:var(--text-muted);font-size:0.85rem;padding:12px;">Loading...</p>';
-            try {
-                const r=await fetch(`${API_URL}/rooms/status`), d=await r.json();
-                if(!Array.isArray(d)||!d.length){c.innerHTML='<p style="color:var(--text-muted);padding:12px;">No rooms.</p>';return;}
-                c.innerHTML=d.map(rm=>{const sv=rm.status||'AVAILABLE';return`<div class="room-card" style="padding:14px;"><div class="card-top"><span class="room-title">${rm.venue||'Unknown'}</span><span class="status-pill ${sv.toLowerCase()}">${sv}</span></div><div class="schedule-line"><i class="fa-regular fa-calendar-check"></i> ${rm.current_schedule||''}</div><div style="display:flex;gap:10px;margin-top:10px;"><button class="btn-submit" style="flex:1;background:#10b981;" onclick="updateRoomOverride('${rm.venue.replace(/'/g,"\\'")}','ACTIVE')">Set Active</button><button class="btn-submit" style="flex:1;background:#f97316;" onclick="updateRoomOverride('${rm.venue.replace(/'/g,"\\'")}','INACTIVE')">Set Inactive</button></div></div>`;}).join('');
-            } catch(e){c.innerHTML='<p style="color:var(--busy-red);font-size:0.85rem;padding:12px;">Error.</p>';}
-        }
-        async function updateRoomOverride(v,s){try{const r=await fetch(`${API_URL}/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({venue:v,status:s})});if(r.ok){alert(`Room ${v} -> ${s}`);fetchAdminStatus();fetchRoomStatus();}}catch(e){}}
-        async function releaseAllOverrides(){if(!confirm('Reset all overrides?'))return;try{await fetch(`${API_URL}/rooms/reset`,{method:'POST'});alert('Cleared.');fetchAdminStatus();fetchRoomStatus();}catch(e){}}
-
-        // ── Dashboard Rooms ──
         async function fetchRoomStatus() {
-            try{const r=await fetch(`${API_URL}/rooms/status`);allRooms=await r.json()||[];const c=document.getElementById('rooms-list-container');c.innerHTML=(!Array.isArray(allRooms)||!allRooms.length)?'<p style="padding:10px;font-size:0.85rem;color:var(--text-muted);">No rooms found.</p>':'';displayFilteredRooms();}catch(e){document.getElementById('rooms-list-container').innerHTML='<p style="padding:10px;font-size:0.85rem;color:var(--text-muted);">Connecting...</p>';}
+            try {
+                const r = await fetch(`${API_URL}/rooms/status`);
+                allRooms = await r.json() || [];
+                const c = document.getElementById('rooms-list-container');
+                if (!c) return;
+                c.innerHTML = (!Array.isArray(allRooms) || !allRooms.length) ? '<p style="padding:10px;font-size:0.85rem;color:var(--text-muted);">No rooms found.</p>' : '';
+                displayFilteredRooms();
+            } catch(e) {
+                const el = document.getElementById('rooms-list-container');
+                if (el) el.innerHTML = '<p style="padding:10px;font-size:0.85rem;color:var(--text-muted);">Connecting...</p>';
+            }
         }
-        function filterRooms(t,evt){currentFilter=t;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));if(evt)evt.target.classList.add('active');displayFilteredRooms();}
-        function handleRoomSearch(){searchQuery=document.getElementById('room-search-input').value.toLowerCase().trim();displayFilteredRooms();}
+
+        function filterRooms(t, evt) {
+            currentFilter = t;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            if (evt) evt.target.classList.add('active');
+            displayFilteredRooms();
+        }
+
+        function handleRoomSearch() {
+            searchQuery = document.getElementById('room-search-input').value.toLowerCase().trim();
+            displayFilteredRooms();
+        }
+
         function displayFilteredRooms() {
-            const c=document.getElementById('rooms-list-container'); let f=allRooms;
-            if(currentFilter==='scheduled')f=allRooms.filter(r=>(r.current_schedule||'').toLowerCase()!=='no schedule info'&&(r.current_schedule||'')!=='');
-            else if(currentFilter==='occupied')f=allRooms.filter(r=>(r.status||'').toUpperCase()==='BUSY'||(r.status||'').toUpperCase()==='OCCUPIED');
-            else if(currentFilter==='empty')f=allRooms.filter(r=>(r.status||'').toUpperCase()==='AVAILABLE');
-            if(searchQuery)f=f.filter(r=>(r.venue||'').toLowerCase().includes(searchQuery)||(r.status||'').toLowerCase().includes(searchQuery)||(r.current_schedule||'').toLowerCase().includes(searchQuery));
-            if(!f.length){c.innerHTML=`<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>No rooms match "${currentFilter}".</p>`;return;}
-            c.innerHTML=f.map(rm=>{const sv=rm.status||"AVAILABLE",nd=systemNodes.find(n=>n.name===rm.venue),hc=nd&&nd.camera_url;return`<div class="room-card"><div class="card-top"><span class="room-title">${rm.venue||'Venue'}</span><span class="status-pill ${sv.toLowerCase()}">${sv}</span></div><div class="schedule-line"><i class="fa-regular fa-calendar-check"></i> ${rm.current_schedule||'Empty'}</div><div style="font-size:0.7rem;color:#94a3b8;"><i class="fa-regular fa-clock"></i> ${rm.last_verified||'Synced'}</div>${hc?`<button onclick="openCCTV('${rm.venue.replace(/'/g,"\\'")}','${nd.camera_url.replace(/'/g,"\\'")}')" style="width:100%;padding:8px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.8rem;margin-top:4px;">Live CCTV</button>`:''}</div>`;}).join('');
+            const c = document.getElementById('rooms-list-container');
+            if (!c) return;
+            let f = allRooms;
+            if (currentFilter === 'scheduled') f = allRooms.filter(r => (r.current_schedule||'').toLowerCase() !== 'no schedule info' && (r.current_schedule||'') !== '');
+            else if (currentFilter === 'occupied') f = allRooms.filter(r => (r.status||'').toUpperCase() === 'BUSY' || (r.status||'').toUpperCase() === 'OCCUPIED');
+            else if (currentFilter === 'empty') f = allRooms.filter(r => (r.status||'').toUpperCase() === 'AVAILABLE');
+            if (searchQuery) f = f.filter(r => (r.venue||'').toLowerCase().includes(searchQuery) || (r.status||'').toLowerCase().includes(searchQuery) || (r.current_schedule||'').toLowerCase().includes(searchQuery));
+            if (!f.length) {
+                c.innerHTML = `<p style='padding:10px;font-size:0.85rem;color:var(--text-muted);'>No rooms match "${currentFilter}".</p>`;
+                return;
+            }
+
+            const isAdmin = loggedInUserType === 'admin';
+
+            c.innerHTML = f.map(rm => {
+                const sv = rm.status || "AVAILABLE";
+                const nd = systemNodes.find(n => n.name === rm.venue);
+                const hc = nd && nd.camera_url;
+                const venueEscaped = rm.venue.replace(/'/g, "\\'");
+                return `<div class="room-card">
+                    <div class="card-top">
+                        <span class="room-title">${rm.venue || 'Venue'}</span>
+                        <span class="status-pill ${sv.toLowerCase()}">${sv}</span>
+                    </div>
+                    ${rm.capacity ? `<div class="schedule-line"><i class="fa-solid fa-users"></i> Capacity: ${rm.capacity}</div>` : ''}
+                    <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i> ${rm.current_schedule || 'Empty'}</div>
+                    <div style="font-size:0.7rem;color:#94a3b8;"><i class="fa-regular fa-clock"></i> ${rm.last_verified || 'Synced'}</div>
+                    ${hc ? `<button onclick="openCCTV('${venueEscaped}','${nd.camera_url.replace(/'/g,"\\'")}')" style="width:100%;padding:8px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.8rem;margin-top:4px;">Live CCTV</button>` : ''}
+                    ${isAdmin ? `
+                    <div style="display:flex;gap:10px;margin-top:6px;">
+                        <button class="btn-submit" style="flex:1;background:#10b981;padding:8px;font-size:0.75rem;" onclick="updateRoomOverride('${venueEscaped}','ACTIVE')">Set Active</button>
+                        <button class="btn-submit" style="flex:1;background:#f97316;padding:8px;font-size:0.75rem;" onclick="updateRoomOverride('${venueEscaped}','INACTIVE')">Set Inactive</button>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
         }
 
-        // ── CCTV ──
-        function openCCTV(v,u){const m=document.getElementById('cctv-modal');document.getElementById('cctv-header').innerHTML=`Live: <span style="color:#ef4444;">${v}</span>`;const co=document.getElementById('cctv-content');m.style.display='flex';if(!u){co.innerHTML='<p style="color:#94a3b8;">No camera.</p>';return;}const ul=u.toLowerCase();if(ul.endsWith('.m3u8'))co.innerHTML=`<video id="hls-video" controls autoplay style="width:100%;height:100%;border-radius:8px;background:#000;"><source src="${u}" type="application/x-mpegURL"></video>`;else if(ul.startsWith('rtsp://'))co.innerHTML=`<div style="text-align:center;padding:20px;color:white;"><p>RTSP needs <a href="${u}" target="_blank" style="color:#ef4444;">VLC</a></p></div>`;else if(ul.includes('/video')||ul.includes('/mjpeg'))co.innerHTML=`<img src="${u}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">`;else if(ul.includes('youtube.com')||ul.includes('youtu.be')){let e=u.replace('watch?v=','embed/').split('&')[0];if(u.includes('youtu.be/')){const v=u.split('youtu.be/')[1].split('?')[0];e=`https://www.youtube.com/embed/${v}`;}co.innerHTML=`<iframe src="${e}" style="width:100%;height:100%;border:none;border-radius:8px;" allowfullscreen></iframe>`;}else if(ul.startsWith('http'))co.innerHTML=`<iframe src="${u}" style="width:100%;height:100%;border:none;border-radius:8px;"></iframe>`;else co.innerHTML='<p style="color:#94a3b8;">Unsupported format.</p>';}
-        function closeCCTV(){document.getElementById('cctv-modal').style.display='none';document.getElementById('cctv-content').innerHTML='Loading camera feed...';}
+        // ════════════════════════════════════════════
+        // CCTV
+        // ════════════════════════════════════════════
 
-        // ── Timetable Management ──
-        function getAdminPwd(){return document.getElementById('admin_password').value;}
+        function openCCTV(v, u) {
+            const m = document.getElementById('cctv-modal');
+            if (!m) return;
+            document.getElementById('cctv-header').innerHTML = `Live: <span style="color:#ef4444;">${v}</span>`;
+            const co = document.getElementById('cctv-content');
+            m.style.display = 'flex';
+            if (!u) { co.innerHTML = '<p style="color:#94a3b8;">No camera.</p>'; return; }
+            const ul = u.toLowerCase();
+            if (ul.endsWith('.m3u8')) co.innerHTML = `<video id="hls-video" controls autoplay style="width:100%;height:100%;border-radius:8px;background:#000;"><source src="${u}" type="application/x-mpegURL"></video>`;
+            else if (ul.startsWith('rtsp://')) co.innerHTML = `<div style="text-align:center;padding:20px;color:white;"><p>RTSP needs <a href="${u}" target="_blank" style="color:#ef4444;">VLC</a></p></div>`;
+            else if (ul.includes('/video') || ul.includes('/mjpeg')) co.innerHTML = `<img src="${u}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">`;
+            else if (ul.includes('youtube.com') || ul.includes('youtu.be')) {
+                let e = u.replace('watch?v=', 'embed/').split('&')[0];
+                if (u.includes('youtu.be/')) { const v = u.split('youtu.be/')[1].split('?')[0]; e = `https://www.youtube.com/embed/${v}`; }
+                co.innerHTML = `<iframe src="${e}" style="width:100%;height:100%;border:none;border-radius:8px;" allowfullscreen></iframe>`;
+            } else if (ul.startsWith('http')) co.innerHTML = `<iframe src="${u}" style="width:100%;height:100%;border:none;border-radius:8px;"></iframe>`;
+            else co.innerHTML = '<p style="color:#94a3b8;">Unsupported format.</p>';
+        }
+
+        function closeCCTV() {
+            const m = document.getElementById('cctv-modal');
+            if (!m) return;
+            m.style.display = 'none';
+            const co = document.getElementById('cctv-content');
+            if (co) co.innerHTML = 'Loading camera feed...';
+        }
+
+        // ════════════════════════════════════════════
+        // ADMIN DASHBOARD
+        // ════════════════════════════════════════════
+
+        async function fetchAdminStatus() {
+            const c = document.getElementById('admin-status-container');
+            if (!c) return;
+            c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:12px;">Loading...</p>';
+            try {
+                const r = await fetch(`${API_URL}/rooms/status`), d = await r.json();
+                if (!Array.isArray(d) || !d.length) { c.innerHTML = '<p style="color:var(--text-muted);padding:12px;">No rooms.</p>'; return; }
+                c.innerHTML = d.map(rm => {
+                    const sv = rm.status || 'AVAILABLE';
+                    const venueEscaped = rm.venue.replace(/'/g, "\\'");
+                    return `<div class="room-card" style="padding:14px;">
+                        <div class="card-top"><span class="room-title">${rm.venue || 'Unknown'}</span><span class="status-pill ${sv.toLowerCase()}">${sv}</span></div>
+                        ${rm.capacity ? `<div class="schedule-line"><i class="fa-solid fa-users"></i> Capacity: ${rm.capacity}</div>` : ''}
+                        <div class="schedule-line"><i class="fa-regular fa-calendar-check"></i> ${rm.current_schedule || ''}</div>
+                        <div style="display:flex;gap:10px;margin-top:10px;">
+                            <button class="btn-submit" style="flex:1;background:#10b981;padding:8px;font-size:0.75rem;" onclick="updateRoomOverride('${venueEscaped}','ACTIVE')">Set Active</button>
+                            <button class="btn-submit" style="flex:1;background:#f97316;padding:8px;font-size:0.75rem;" onclick="updateRoomOverride('${venueEscaped}','INACTIVE')">Set Inactive</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch(e) { c.innerHTML = '<p style="color:var(--busy-red);font-size:0.85rem;padding:12px;">Error.</p>'; }
+        }
+
+        async function updateRoomOverride(v, s) {
+            try {
+                const r = await fetch(`${API_URL}/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ venue: v, status: s })
+                });
+                if (r.ok) {
+                    alert(`Room ${v} -> ${s}`);
+                    fetchAdminStatus();
+                    fetchRoomStatus();
+                }
+            } catch(e) {}
+        }
+
+        async function releaseAllOverrides() {
+            if (!confirm('Reset all overrides?')) return;
+            try {
+                await fetch(`${API_URL}/rooms/reset`, { method: 'POST' });
+                alert('Cleared.');
+                fetchAdminStatus();
+                fetchRoomStatus();
+            } catch(e) {}
+        }
+
+        // ════════════════════════════════════════════
+        // TIMETABLE MANAGEMENT
+        // ════════════════════════════════════════════
+
+        function getAdminPwd() {
+            return getStoredAdminPassword();
+        }
+
         async function uploadTimetablePDF() {
-            const fi=document.getElementById('pdf-upload-input'), sd=document.getElementById('pdf-upload-status');
-            if(!fi.files||!fi.files[0]){alert('Select PDF.');return;}const ap=getAdminPwd();if(!ap){alert('Enter admin password first.');return;}
-            sd.innerHTML='<span style="color:#0284c7;">Uploading...</span>';const fd=new FormData();fd.append('admin_password',ap);fd.append('file',fi.files[0]);
-            try{const r=await fetch(`${API_URL}/admin/timetable/upload-pdf`,{method:'POST',body:fd});const d=await r.json();sd.innerHTML=r.ok?`<span style="color:#10b981;">${d.message} (${d.classes_imported} classes)</span>`:`<span style="color:#ef4444;">${d.detail}</span>`;if(r.ok){fetchTimetableEntries();fetchRoomStatus();}}catch(e){sd.innerHTML=`<span style="color:#ef4444;">Error</span>`;}
+            const fi = document.getElementById('pdf-upload-input'), sd = document.getElementById('pdf-upload-status');
+            if (!fi.files || !fi.files[0]) { alert('Select PDF.'); return; }
+            const ap = getStoredAdminPassword();
+            if (!ap) { alert('Admin session expired. Please re-login.'); return; }
+            sd.innerHTML = '<span style="color:#0284c7;">Uploading...</span>';
+            const fd = new FormData();
+            fd.append('admin_password', ap);
+            fd.append('file', fi.files[0]);
+            try {
+                const r = await fetch(`${API_URL}/admin/timetable/upload-pdf`, { method: 'POST', body: fd });
+                const d = await r.json();
+                sd.innerHTML = r.ok ? `<span style="color:#10b981;">${d.message} (${d.classes_imported} classes)</span>` : `<span style="color:#ef4444;">${d.detail}</span>`;
+                if (r.ok) { fetchTimetableEntries(); fetchRoomStatus(); }
+            } catch(e) { sd.innerHTML = `<span style="color:#ef4444;">Error</span>`; }
         }
-        function toggleAddEntryForm(){const f=document.getElementById('add-entry-form');f.style.display=f.style.display==='none'?'block':'none';}
+
+        function toggleAddEntryForm() {
+            const f = document.getElementById('add-entry-form');
+            if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+        }
+
         async function addTimetableEntry() {
-            const ap=getAdminPwd();if(!ap){alert('Enter admin password first.');return;}
-            const e={course_code:document.getElementById('entry-code').value.trim(),course_name:document.getElementById('entry-name').value.trim(),day_of_week:document.getElementById('entry-day').value,start_time:document.getElementById('entry-start').value.trim(),end_time:document.getElementById('entry-end').value.trim(),venue:document.getElementById('entry-venue').value.trim()};
-            if(!e.course_code||!e.start_time||!e.end_time||!e.venue){alert('Fill required fields.');return;}
-            try{const r=await fetch(`${API_URL}/admin/timetable/add?admin_password=${encodeURIComponent(ap)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(e)});const d=await r.json();if(r.ok){alert('Added!');['entry-code','entry-name','entry-start','entry-end','entry-venue'].forEach(id=>document.getElementById(id).value='');fetchTimetableEntries();fetchRoomStatus();}else alert('Error: '+(d.detail||'Failed'));}catch(e){alert('Error');}
+            const ap = getStoredAdminPassword();
+            if (!ap) { alert('Admin session expired. Please re-login.'); return; }
+            const e = {
+                course_code: document.getElementById('entry-code').value.trim(),
+                course_name: document.getElementById('entry-name').value.trim(),
+                day_of_week: document.getElementById('entry-day').value,
+                start_time: document.getElementById('entry-start').value.trim(),
+                end_time: document.getElementById('entry-end').value.trim(),
+                venue: document.getElementById('entry-venue').value.trim()
+            };
+            if (!e.course_code || !e.start_time || !e.end_time || !e.venue) { alert('Fill required fields.'); return; }
+            try {
+                const r = await fetch(`${API_URL}/admin/timetable/add?admin_password=${encodeURIComponent(ap)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(e)
+                });
+                const d = await r.json();
+                if (r.ok) {
+                    alert('Added!');
+                    ['entry-code','entry-name','entry-start','entry-end','entry-venue'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                    fetchTimetableEntries();
+                    fetchRoomStatus();
+                } else alert('Error: ' + (d.detail || 'Failed'));
+            } catch(e) { alert('Error'); }
         }
+
         async function fetchTimetableEntries() {
-            const co=document.getElementById('timetable-entries-container'), ap=getAdminPwd();
-            if(!ap){co.innerHTML='<p style="color:var(--busy-red);font-size:0.85rem;">Enter admin password first.</p>';return;}
-            co.innerHTML='<p style="color:var(--text-muted);">Loading...</p>';
-            try{const r=await fetch(`${API_URL}/admin/timetable/all?admin_password=${encodeURIComponent(ap)}`);const d=await r.json();if(!r.ok){co.innerHTML=`<p style="color:var(--busy-red);">${d.detail}</p>`;return;}if(!d||!d.length){co.innerHTML='<p style="color:var(--text-muted);padding:10px;">No entries.</p>';return;}
-            const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];let h=`<p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Total: ${d.length} entries</p>`;
-            days.forEach(day=>{const de=d.filter(e=>e.day_of_week===day);if(!de.length)return;h+=`<div style="background:#f8fafc;border-radius:12px;padding:10px;margin-bottom:10px;border:1px solid #e2e8f0;"><p style="font-weight:700;font-size:0.85rem;color:var(--accent-blue);margin-bottom:6px;">${day} (${de.length})</p>`;de.forEach(e=>{h+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #e2e8f0;font-size:0.8rem;"><div style="flex:1;"><strong>${e.course_code}</strong>${e.course_name?' - '+e.course_name:''}<br><span style="color:var(--text-muted);">${e.start_time}-${e.end_time} | ${e.venue}</span></div><button onclick="deleteTimetableEntry(${e.id})" style="background:none;border:none;color:var(--busy-red);cursor:pointer;font-size:1.2rem;padding:4px;">&times;</button></div>`;});h+=`</div>`;});co.innerHTML=h;}catch(e){co.innerHTML=`<p style="color:var(--busy-red);">Error</p>`;}
+            const co = document.getElementById('timetable-entries-container');
+            const ap = getStoredAdminPassword();
+            if (!ap) { co.innerHTML = '<p style="color:var(--busy-red);font-size:0.85rem;">Admin session expired. Please re-login.</p>'; return; }
+            co.innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
+            try {
+                const r = await fetch(`${API_URL}/admin/timetable/all?admin_password=${encodeURIComponent(ap)}`);
+                const d = await r.json();
+                if (!r.ok) { co.innerHTML = `<p style="color:var(--busy-red);">${d.detail}</p>`; return; }
+                if (!d || !d.length) { co.innerHTML = '<p style="color:var(--text-muted);padding:10px;">No entries.</p>'; return; }
+                const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                let h = `<p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Total: ${d.length} entries</p>`;
+                days.forEach(day => {
+                    const de = d.filter(e => e.day_of_week === day);
+                    if (!de.length) return;
+                    h += `<div style="background:#f8fafc;border-radius:12px;padding:10px;margin-bottom:10px;border:1px solid #e2e8f0;">
+                        <p style="font-weight:700;font-size:0.85rem;color:var(--accent-blue);margin-bottom:6px;">${day} (${de.length})</p>`;
+                    de.forEach(e => {
+                        h += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #e2e8f0;font-size:0.8rem;">
+                            <div style="flex:1;"><strong>${e.course_code}</strong>${e.course_name ? ' - '+e.course_name : ''}<br><span style="color:var(--text-muted);">${e.start_time}-${e.end_time} | ${e.venue}</span></div>
+                            <button onclick="deleteTimetableEntry(${e.id})" style="background:none;border:none;color:var(--busy-red);cursor:pointer;font-size:1.2rem;padding:4px;">&times;</button>
+                        </div>`;
+                    });
+                    h += `</div>`;
+                });
+                co.innerHTML = h;
+            } catch(e) { co.innerHTML = `<p style="color:var(--busy-red);">Error</p>`; }
         }
-        async function deleteTimetableEntry(id){if(!confirm('Delete?'))return;const ap=getAdminPwd();try{const r=await fetch(`${API_URL}/admin/timetable/delete/${id}?admin_password=${encodeURIComponent(ap)}`,{method:'DELETE'});if(r.ok){fetchTimetableEntries();fetchRoomStatus();}}catch(e){}}
-        async function clearAllTimetable(){if(!confirm('Delete ALL timetable entries?'))return;if(!confirm('Final confirmation?'))return;const ap=getAdminPwd();try{const r=await fetch(`${API_URL}/admin/timetable/clear?admin_password=${encodeURIComponent(ap)}`,{method:'DELETE'});if(r.ok){alert('Cleared!');document.getElementById('timetable-entries-container').innerHTML='';fetchRoomStatus();}}catch(e){}}
 
-        // ── Node Management ──
+        async function deleteTimetableEntry(id) {
+            if (!confirm('Delete?')) return;
+            const ap = getStoredAdminPassword();
+            try {
+                const r = await fetch(`${API_URL}/admin/timetable/delete/${id}?admin_password=${encodeURIComponent(ap)}`, { method: 'DELETE' });
+                if (r.ok) { fetchTimetableEntries(); fetchRoomStatus(); }
+            } catch(e) {}
+        }
+
+        async function clearAllTimetable() {
+            if (!confirm('Delete ALL timetable entries?')) return;
+            if (!confirm('Final confirmation?')) return;
+            const ap = getStoredAdminPassword();
+            try {
+                const r = await fetch(`${API_URL}/admin/timetable/clear?admin_password=${encodeURIComponent(ap)}`, { method: 'DELETE' });
+                if (r.ok) { alert('Cleared!'); const co = document.getElementById('timetable-entries-container'); if (co) co.innerHTML = ''; fetchRoomStatus(); }
+            } catch(e) {}
+        }
+
+        // ════════════════════════════════════════════
+        // NODE MANAGEMENT
+        // ════════════════════════════════════════════
+
         async function addCampusNode() {
-            const ap=getAdminPwd();if(!ap){alert('Enter admin password first.');return;}
-            const n=document.getElementById('node-name').value.trim(),la=parseFloat(document.getElementById('node-lat').value),ln=parseFloat(document.getElementById('node-lng').value),fl=parseInt(document.getElementById('node-floor').value)||1,de=document.getElementById('node-desc').value.trim();
-            if(!n||isNaN(la)||isNaN(ln)){alert('Name, lat, lng required.');return;}
-            try{const r=await fetch(`${API_URL}/admin/nodes/add?admin_password=${encodeURIComponent(ap)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,lat:la,lng:ln,floor:fl,description:de})});const d=await r.json();document.getElementById('node-add-status').innerHTML=r.ok?`<span style="color:#10b981;">${d.message}</span>`:`<span style="color:#ef4444;">${d.detail}</span>`;if(r.ok){['node-name','node-lat','node-lng','node-desc'].forEach(id=>document.getElementById(id).value='');}}catch(e){document.getElementById('node-add-status').innerHTML='<span style="color:#ef4444;">Error</span>';}
+            const ap = getStoredAdminPassword();
+            if (!ap) { alert('Admin session expired. Please re-login.'); return; }
+            const n = document.getElementById('node-name').value.trim();
+            const la = parseFloat(document.getElementById('node-lat').value);
+            const ln = parseFloat(document.getElementById('node-lng').value);
+            const fl = parseInt(document.getElementById('node-floor').value) || 1;
+            const de = document.getElementById('node-desc').value.trim();
+            if (!n || isNaN(la) || isNaN(ln)) { alert('Name, lat, lng required.'); return; }
+            try {
+                const r = await fetch(`${API_URL}/admin/nodes/add?admin_password=${encodeURIComponent(ap)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: n, lat: la, lng: ln, floor: fl, description: de })
+                });
+                const d = await r.json();
+                const status = document.getElementById('node-add-status');
+                if (status) {
+                    status.innerHTML = r.ok ? `<span style="color:#10b981;">${d.message}</span>` : `<span style="color:#ef4444;">${d.detail}</span>`;
+                }
+                if (r.ok) {
+                    ['node-name','node-lat','node-lng','node-desc'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.value = '';
+                    });
+                }
+            } catch(e) {
+                const status = document.getElementById('node-add-status');
+                if (status) status.innerHTML = '<span style="color:#ef4444;">Error</span>';
+            }
         }
-        async function fetchAllNodes() {
-            const co=document.getElementById('nodes-list-container'), ap=getAdminPwd();if(!ap){co.innerHTML='<p style="color:var(--busy-red);">Enter admin password first.</p>';return;}co.innerHTML='<p style="color:var(--text-muted);">Loading...</p>';
-            try{const r=await fetch(`${API_URL}/admin/nodes/all?admin_password=${encodeURIComponent(ap)}`);const d=await r.json();if(!r.ok){co.innerHTML=`<p style="color:var(--busy-red);">${d.detail}</p>`;return;}if(!d||!d.length){co.innerHTML='<p style="color:var(--text-muted);">No nodes.</p>';return;}
-            co.innerHTML=`<p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Total: ${d.length} nodes</p>`+d.map(nd=>{const si='cam-'+nd.name.replace(/[^a-zA-Z0-9]/g,'_');return`<div style="background:#f8fafc;border-radius:10px;padding:8px;margin-bottom:6px;border:1px solid #e2e8f0;font-size:0.8rem;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><strong>${nd.name}</strong><br><span style="color:var(--text-muted);">${nd.lat.toFixed(4)}, ${nd.lng.toFixed(4)} | Floor ${nd.floor}</span><div style="margin-top:4px;display:flex;gap:4px;align-items:center;"><span style="font-size:0.75rem;color:var(--text-muted);">Camera:</span><input type="text" id="${si}" value="${nd.camera_url||''}" placeholder="URL" style="flex:1;padding:4px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:0.75rem;"><button onclick="setNodeCamera('${nd.name.replace(/'/g,"\\'")}')" style="background:#0284c7;color:white;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.7rem;">Set</button></div></div><button onclick="deleteCampusNode('${nd.name.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--busy-red);cursor:pointer;font-size:1.2rem;">&times;</button></div></div>`;}).join('');}catch(e){co.innerHTML='<p style="color:var(--busy-red);">Error</p>';}
-        }
-        async function setNodeCamera(nn){const ap=getAdminPwd();if(!ap){alert('Enter admin password first.');return;}const si='cam-'+nn.replace(/[^a-zA-Z0-9]/g,'_'),u=document.getElementById(si)?.value||'';try{const r=await fetch(`${API_URL}/admin/nodes/camera/${encodeURIComponent(nn)}?admin_password=${encodeURIComponent(ap)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({camera_url:u})});if(r.ok){alert('Camera updated!');fetchSystemNodesOnly();}}catch(e){}}
-        async function deleteCampusNode(nn){if(!confirm(`Delete "${nn}"?`))return;const ap=getAdminPwd();try{const r=await fetch(`${API_URL}/admin/nodes/delete/${encodeURIComponent(nn)}?admin_password=${encodeURIComponent(ap)}`,{method:'DELETE'});if(r.ok){alert('Deleted!');fetchAllNodes();}}catch(e){}}
 
-        // ── PWA ──
-        if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js').catch(()=>{}));
-        window.onload = () => { fetchRoomStatus(); setInterval(fetchRoomStatus, 8000); };
+        async function fetchAllNodes() {
+            const co = document.getElementById('nodes-list-container');
+            const ap = getStoredAdminPassword();
+            if (!ap) { co.innerHTML = '<p style="color:var(--busy-red);">Admin session expired.</p>'; return; }
+            co.innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
+            try {
+                const r = await fetch(`${API_URL}/admin/nodes/all?admin_password=${encodeURIComponent(ap)}`);
+                const d = await r.json();
+                if (!r.ok) { co.innerHTML = `<p style="color:var(--busy-red);">${d.detail}</p>`; return; }
+                if (!d || !d.length) { co.innerHTML = '<p style="color:var(--text-muted);">No nodes.</p>'; return; }
+                co.innerHTML = `<p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Total: ${d.length} nodes</p>` +
+                    d.map(nd => {
+                        const si = 'cam-'+nd.name.replace(/[^a-zA-Z0-9]/g, '_');
+                        return `<div style="background:#f8fafc;border-radius:10px;padding:8px;margin-bottom:6px;border:1px solid #e2e8f0;font-size:0.8rem;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                                <div>
+                                    <strong>${nd.name}</strong><br>
+                                    <span style="color:var(--text-muted);">${nd.lat.toFixed(4)}, ${nd.lng.toFixed(4)} | Floor ${nd.floor}</span>
+                                    <div style="margin-top:4px;display:flex;gap:4px;align-items:center;">
+                                        <span style="font-size:0.75rem;color:var(--text-muted);">Camera:</span>
+                                        <input type="text" id="${si}" value="${nd.camera_url||''}" placeholder="URL" style="flex:1;padding:4px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:0.75rem;">
+                                        <button onclick="setNodeCamera('${nd.name.replace(/'/g,"\\'")}')" style="background:#0284c7;color:white;border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:0.7rem;">Set</button>
+                                    </div>
+                                </div>
+                                <button onclick="deleteCampusNode('${nd.name.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--busy-red);cursor:pointer;font-size:1.2rem;">&times;</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+            } catch(e) { co.innerHTML = '<p style="color:var(--busy-red);">Error</p>'; }
+        }
+
+        async function setNodeCamera(nn) {
+            const ap = getStoredAdminPassword();
+            if (!ap) { alert('Admin session expired. Please re-login.'); return; }
+            const si = 'cam-'+nn.replace(/[^a-zA-Z0-9]/g, '_');
+            const u = document.getElementById(si)?.value || '';
+            try {
+                const r = await fetch(`${API_URL}/admin/nodes/camera/${encodeURIComponent(nn)}?admin_password=${encodeURIComponent(ap)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_url: u })
+                });
+                if (r.ok) { alert('Camera updated!'); fetchSystemNodesOnly(); }
+            } catch(e) {}
+        }
+
+        async function deleteCampusNode(nn) {
+            if (!confirm(`Delete "${nn}"?`)) return;
+            const ap = getStoredAdminPassword();
+            try {
+                const r = await fetch(`${API_URL}/admin/nodes/delete/${encodeURIComponent(nn)}?admin_password=${encodeURIComponent(ap)}`, { method: 'DELETE' });
+                if (r.ok) { alert('Deleted!'); fetchAllNodes(); }
+            } catch(e) {}
+        }
+
+        // ════════════════════════════════════════════
+        // PWA & INIT
+        // ════════════════════════════════════════════
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('/static/sw.js').catch(()=>{}));
+        }
+
+        window.onload = () => {
+            restoreSession();
+            // Poll room status if dashboard is visible
+            setInterval(() => {
+                const dc = document.getElementById('dashboard-content');
+                if (dc && dc.innerHTML.includes('rooms-list-container')) {
+                    fetchRoomStatus();
+                }
+            }, 8000);
+        };
     </script>
 </body>
 </html>
